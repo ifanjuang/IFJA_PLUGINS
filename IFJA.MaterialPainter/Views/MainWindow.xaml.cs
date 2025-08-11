@@ -1,0 +1,1 @@
+namespace IFJA.MaterialPainter.Views { public class MainWindow {} }

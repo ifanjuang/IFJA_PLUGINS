@@ -1,0 +1,1 @@
+namespace IFJA.MaterialPainter { public class App {} }
