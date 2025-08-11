@@ -31,4 +31,11 @@
     <None Include="MaterRevitAddin.addin.sample.xml" />
     <None Include="Resources\Icons\placeholder.txt" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nice3point.Revit.Build.Tasks" Version="3.0.1" />
+    <PackageReference Include="Nice3point.Revit.Extensions" Version="2026.0.1" />
+    <PackageReference Include="Nice3point.Revit.Toolkit" Version="2026.0.0" />
+    <PackageReference Include="WPF-UI" Version="4.0.3" />
+  </ItemGroup>
 </Project>
