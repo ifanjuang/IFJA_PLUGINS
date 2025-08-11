@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Name>MaterRevitAddin</Name>
+    <Assembly>%APPDATA%\Autodesk\Revit\Addins\2026\MaterRevitAddin.dll</Assembly>
+    <AddInId>8D83FA4B-66A1-4E1F-9AEB-A0E1C0C0D1D1</AddInId>
+    <FullClassName>MaterRevitAddin.Commands.ShowUICommand</FullClassName>
+    <VendorId>MATR</VendorId>
+    <VendorDescription>Material PBR helper (.NET 8, Win11)</VendorDescription>
+  </AddIn>
+</RevitAddIns>

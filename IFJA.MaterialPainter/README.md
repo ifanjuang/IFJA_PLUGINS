@@ -1,3 +1,3 @@
-# IFJA.MaterialPainter (Revit 2026, .NET Framework 4.8)
+# IFJA.MaterialPainter (scaffold)
 
-Scaffold du plugin **Material Painter** (WPF MVVM, ExternalApplication + ExternalCommand).
+Scaffold prêt pour Revit 2026 (WPF MVVM).
