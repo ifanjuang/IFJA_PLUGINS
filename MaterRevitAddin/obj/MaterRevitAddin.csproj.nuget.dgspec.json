@@ -44,6 +44,18 @@
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows7.0",
           "dependencies": {
+            "Nice3point.Revit.Api.AdWindows": {
+              "target": "Package",
+              "version": "[2026.*, )"
+            },
+            "Nice3point.Revit.Api.RevitAPI": {
+              "target": "Package",
+              "version": "[2026.*, )"
+            },
+            "Nice3point.Revit.Api.RevitAPIUI": {
+              "target": "Package",
+              "version": "[2026.*, )"
+            },
             "Nice3point.Revit.Build.Tasks": {
               "suppressParent": "All",
               "target": "Package",

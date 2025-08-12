@@ -1,10 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "RcZjNOZHMYA=",
+  "dgSpecHash": "EhDMgnxOrw4=",
   "success": true,
   "projectFilePath": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\MaterRevitAddin.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\IFAN\\.nuget\\packages\\jetbrains.annotations\\2024.3.0\\jetbrains.annotations.2024.3.0.nupkg.sha512",
+    "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.api.adwindows\\2026.2.0\\nice3point.revit.api.adwindows.2026.2.0.nupkg.sha512",
+    "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.api.revitapi\\2026.2.0\\nice3point.revit.api.revitapi.2026.2.0.nupkg.sha512",
+    "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.api.revitapiui\\2026.2.0\\nice3point.revit.api.revitapiui.2026.2.0.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.build.tasks\\3.0.1\\nice3point.revit.build.tasks.3.0.1.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.extensions\\2026.0.1\\nice3point.revit.extensions.2026.0.1.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.toolkit\\2026.0.0\\nice3point.revit.toolkit.2026.0.0.nupkg.sha512",

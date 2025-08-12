@@ -15,6 +15,28 @@
           }
         }
       },
+      "Nice3point.Revit.Api.AdWindows/2026.2.0": {
+        "type": "package",
+        "compile": {
+          "ref/net8.0/AdWindows.dll": {}
+        }
+      },
+      "Nice3point.Revit.Api.RevitAPI/2026.2.0": {
+        "type": "package",
+        "compile": {
+          "ref/net8.0/RevitAPI.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Nice3point.Revit.Api.RevitAPIUI/2026.2.0": {
+        "type": "package",
+        "compile": {
+          "ref/net8.0/RevitAPIUI.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Nice3point.Revit.Build.Tasks/3.0.1": {
         "type": "package",
         "build": {
@@ -113,6 +135,53 @@
         "lib/portable40-net40+sl5+win8+wp8+wpa81/JetBrains.Annotations.dll",
         "lib/portable40-net40+sl5+win8+wp8+wpa81/JetBrains.Annotations.xml",
         "readme.md"
+      ]
+    },
+    "Nice3point.Revit.Api.AdWindows/2026.2.0": {
+      "sha512": "AuR5p9jaH3zO4baUgl5aYjy74xNd0dEaz9dNgklhxR8z08/xT0O9X918Hp+El+wleRc2IaHOwlZGJPUlEcbnFA==",
+      "type": "package",
+      "path": "nice3point.revit.api.adwindows/2026.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "License.md",
+        "Readme.md",
+        "images/PackageIcon.png",
+        "nice3point.revit.api.adwindows.2026.2.0.nupkg.sha512",
+        "nice3point.revit.api.adwindows.nuspec",
+        "ref/net8.0/AdWindows.dll"
+      ]
+    },
+    "Nice3point.Revit.Api.RevitAPI/2026.2.0": {
+      "sha512": "m78ZoC821zN0ZjgZFY/eumo6daj8HkmtLEtqu8tktwhZe02s9sgGkIUXhxMMn4ytc+kMR+aEGV6JGE3QEVn3gA==",
+      "type": "package",
+      "path": "nice3point.revit.api.revitapi/2026.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "License.md",
+        "Readme.md",
+        "images/PackageIcon.png",
+        "nice3point.revit.api.revitapi.2026.2.0.nupkg.sha512",
+        "nice3point.revit.api.revitapi.nuspec",
+        "ref/net8.0/RevitAPI.dll",
+        "ref/net8.0/RevitAPI.xml"
+      ]
+    },
+    "Nice3point.Revit.Api.RevitAPIUI/2026.2.0": {
+      "sha512": "PRR08tuXl9pfP+1lYJXz7hD00pJX848/rC8XVb91zExuz9ea5lSFMf8Zi0t9x8B+tmhgQaSTzzV02ZBXdiGFqQ==",
+      "type": "package",
+      "path": "nice3point.revit.api.revitapiui/2026.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "License.md",
+        "Readme.md",
+        "images/PackageIcon.png",
+        "nice3point.revit.api.revitapiui.2026.2.0.nupkg.sha512",
+        "nice3point.revit.api.revitapiui.nuspec",
+        "ref/net8.0/RevitAPIUI.dll",
+        "ref/net8.0/RevitAPIUI.xml"
       ]
     },
     "Nice3point.Revit.Build.Tasks/3.0.1": {
@@ -245,6 +314,9 @@
   },
   "projectFileDependencyGroups": {
     "net8.0-windows7.0": [
+      "Nice3point.Revit.Api.AdWindows >= 2026.*",
+      "Nice3point.Revit.Api.RevitAPI >= 2026.*",
+      "Nice3point.Revit.Api.RevitAPIUI >= 2026.*",
       "Nice3point.Revit.Build.Tasks >= 3.0.1",
       "Nice3point.Revit.Extensions >= 2026.0.1",
       "Nice3point.Revit.Toolkit >= 2026.0.0",
@@ -294,6 +366,18 @@
       "net8.0-windows7.0": {
         "targetAlias": "net8.0-windows7.0",
         "dependencies": {
+          "Nice3point.Revit.Api.AdWindows": {
+            "target": "Package",
+            "version": "[2026.*, )"
+          },
+          "Nice3point.Revit.Api.RevitAPI": {
+            "target": "Package",
+            "version": "[2026.*, )"
+          },
+          "Nice3point.Revit.Api.RevitAPIUI": {
+            "target": "Package",
+            "version": "[2026.*, )"
+          },
           "Nice3point.Revit.Build.Tasks": {
             "suppressParent": "All",
             "target": "Package",

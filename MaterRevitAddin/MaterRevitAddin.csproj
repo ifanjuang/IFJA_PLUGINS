@@ -20,7 +20,7 @@
     <Platforms>AnyCPU</Platforms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 
-    <DebugType>portable</DebugType>
+    <DebugType>table</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <Prefer32Bit>false</Prefer32Bit>
 
@@ -40,6 +40,9 @@
     <PackageReference Include="Nice3point.Revit.Build.Tasks" Version="3.0.1" PrivateAssets="All" />
     <PackageReference Include="Nice3point.Revit.Extensions" Version="2026.0.1" />
     <PackageReference Include="Nice3point.Revit.Toolkit" Version="2026.0.0" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="2026.*" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="2026.*" />
+    <PackageReference Include="Nice3point.Revit.Api.AdWindows" Version="2026.*" />
     <PackageReference Include="WPF-UI" Version="4.0.3" />
   </ItemGroup>
 

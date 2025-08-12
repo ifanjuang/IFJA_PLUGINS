@@ -1,0 +1,7 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    { "name": "Launch Revit 2026", "type": "clr", "request": "launch", "program": "C:\\Program Files\\Autodesk\\Revit 2026\\Revit.exe" },
+    { "name": "Attach to Revit", "type": "clr", "request": "attach", "processName": "Revit.exe" }
+  ]
+}
