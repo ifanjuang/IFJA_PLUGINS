@@ -47,4 +47,12 @@ namespace MaterRevitAddin.ExternalEvents
                 if (fpe != null && fpe.GetFillPattern().Name == name && fpe.GetFillPattern().IsModel) { existing = fpe; break; }
             }
 
-            if (existing == null
+            if (existing == null) FillPatternElement.Create(doc, fp);
+            else existing.SetFillPattern(fp);
+
+            t.Commit();
+        }
+
+        public string GetName() => "Create Pattern From Divisions";
+    }
+}

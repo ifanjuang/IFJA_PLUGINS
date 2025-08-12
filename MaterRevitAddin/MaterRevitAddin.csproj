@@ -20,7 +20,7 @@
     <Platforms>AnyCPU</Platforms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 
-    <DebugType>table</DebugType>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <Prefer32Bit>false</Prefer32Bit>
 
