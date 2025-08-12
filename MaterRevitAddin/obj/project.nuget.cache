@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "sPfxeUaPwBQ=",
+  "dgSpecHash": "RcZjNOZHMYA=",
   "success": true,
   "projectFilePath": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\MaterRevitAddin.csproj",
   "expectedPackageFiles": [
@@ -10,9 +10,9 @@
     "C:\\Users\\IFAN\\.nuget\\packages\\nice3point.revit.toolkit\\2026.0.0\\nice3point.revit.toolkit.2026.0.0.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\wpf-ui\\4.0.3\\wpf-ui.4.0.3.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\wpf-ui.abstractions\\4.0.3\\wpf-ui.abstractions.4.0.3.nupkg.sha512",
-    "C:\\Users\\IFAN\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.19\\microsoft.aspnetcore.app.ref.8.0.19.nupkg.sha512",
     "C:\\Users\\IFAN\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.19\\microsoft.netcore.app.ref.8.0.19.nupkg.sha512",
-    "C:\\Users\\IFAN\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.19\\microsoft.windowsdesktop.app.ref.8.0.19.nupkg.sha512"
+    "C:\\Users\\IFAN\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.19\\microsoft.windowsdesktop.app.ref.8.0.19.nupkg.sha512",
+    "C:\\Users\\IFAN\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.19\\microsoft.aspnetcore.app.ref.8.0.19.nupkg.sha512"
   ],
   "logs": []
 }

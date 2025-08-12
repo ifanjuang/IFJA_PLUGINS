@@ -1,42 +1,46 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <UseWindowsForms>false</UseWindowsForms>
     <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <RevitVersion>2026</RevitVersion>
+    <DeployRevitAddin>true</DeployRevitAddin>
+    <PublishRevitAddin>true</PublishRevitAddin>
+
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitRevitUsings>false</ImplicitRevitUsings>
+
     <AssemblyName>MaterRevitAddin</AssemblyName>
     <RootNamespace>MaterRevitAddin</RootNamespace>
+
     <Platforms>AnyCPU</Platforms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Prefer32Bit>false</Prefer32Bit>
+
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="RevitAPI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="RevitAPIUI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPIUI.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <Content Include="MaterRevitAddin.addin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+
+    <Content Include="Resources\Icons\placeholder.txt" CopyToPublishDirectory="PreserveNewest" />
+    
   </ItemGroup>
 
   <ItemGroup>
-    <Page Include="Views\MainWindow.xaml" />
-    <Page Include="Views\InputDialog.xaml" />
-    <Page Include="Views\ParamPickerDialog.xaml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="MaterRevitAddin.addin.sample.xml" />
-    <None Include="Resources\Icons\placeholder.txt" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Nice3point.Revit.Build.Tasks" Version="3.0.1" />
+    <PackageReference Include="Nice3point.Revit.Build.Tasks" Version="3.0.1" PrivateAssets="All" />
     <PackageReference Include="Nice3point.Revit.Extensions" Version="2026.0.1" />
     <PackageReference Include="Nice3point.Revit.Toolkit" Version="2026.0.0" />
     <PackageReference Include="WPF-UI" Version="4.0.3" />
   </ItemGroup>
+
 </Project>
