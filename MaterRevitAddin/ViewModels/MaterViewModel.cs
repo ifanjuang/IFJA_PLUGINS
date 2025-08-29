@@ -3,248 +3,426 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Windows.Input;
-using Autodesk.Revit.UI;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
 using Autodesk.Revit.DB;
-using MaterRevitAddin.Models;
-using MaterRevitAddin.Utils;
+using Autodesk.Revit.UI;
+using Mater2026.Models;
+using Mater2026.Services;
+using WpfApp = System.Windows.Application;
+using WpfMessageBox = System.Windows.MessageBox;
 
-namespace MaterRevitAddin.ViewModels
+namespace Mater2026.ViewModels
 {
     public class MaterViewModel : INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
-        void Raise(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+        // === Collections bound to UI ===
+        public ObservableCollection<FolderItem> GridFolders { get; } = [];
+        public ObservableCollection<(ElementId Id, string Name)> ProjectMaterials { get; } = [];
+        public ObservableCollection<MapSlot> MapTypes { get; } = [];
+
+        // Parameters bucket
+        public UiParameters Params { get; } = new();
 
         private readonly UIApplication _uiapp;
+        private readonly UIDocument _uidoc;
+        private CancellationTokenSource? _thumbCts;
+
+        // === Commands the window wires ===
+        public RelayCommand<string> SelectTreeNodeCommand { get; }
+        public RelayCommand<FolderItem> GridTileLeftClickCommand { get; }
+        public RelayCommand ToggleGalleryCommand { get; }
+        public RelayCommand SetThumb512Command { get; }
+        public RelayCommand SetThumb1024Command { get; }
+        public RelayCommand SetThumb2048Command { get; }
+        public RelayCommand GenerateMissingThumbsCommand { get; }
+        public RelayCommand RegenerateAllThumbsCommand { get; }
+        public RelayCommand CreateCommand { get; }
+        public RelayCommand ReplaceCommand { get; }
+        public RelayCommand AssignCommand { get; }
+        public RelayCommand PipetteCommand { get; }
+
+        // === UI state ===
+        private bool _isGallery;
+        public bool IsGallery { get => _isGallery; set { _isGallery = value; OnPropertyChanged(); } }
+
+        // default to smallest per your spec
+        private int _thumbSize = 128;
+        public int ThumbSize
+        {
+            get => _thumbSize;
+            set
+            {
+                if (_thumbSize == value) return;
+                _thumbSize = value;
+                foreach (var f in GridFolders) f.ThumbSize = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private (ElementId Id, string Name)? _selectedMaterial;
+        public (ElementId Id, string Name)? SelectedMaterial
+        {
+            get => _selectedMaterial;
+            set { _selectedMaterial = value; OnPropertyChanged(); OnSelectedMaterialChanged(); }
+        }
+
+        // progress
+        private bool _isThumbWorking;
+        public bool IsThumbWorking { get => _isThumbWorking; set { _isThumbWorking = value; OnPropertyChanged(); } }
+        private int _thumbDone;
+        public int ThumbDone { get => _thumbDone; set { _thumbDone = value; OnPropertyChanged(); } }
+        private int _thumbTotal;
+        public int ThumbTotal { get => _thumbTotal; set { _thumbTotal = value; OnPropertyChanged(); } }
+
+        // grid root path (needed by the window)
+        public string? CurrentGridRoot { get; private set; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        void OnPropertyChanged([CallerMemberName] string? n = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+
         public MaterViewModel(UIApplication uiapp)
         {
             _uiapp = uiapp;
-            RootPath = @"A:\assets\textures\";
-            LoadFolderTree();
+            _uidoc = uiapp.ActiveUIDocument;
 
-            PickMaterialFromModelCommand = new RelayCommand(PickFromModel);
-            CreatePatternFromDivisionsCommand = new RelayCommand(CreatePattern);
-            DoPrimaryActionCommand = new RelayCommand(DoPrimaryAction);
-            CopyMaterialCommand = new RelayCommand(CopyMaterial);
-            StartPaintSessionCommand = new RelayCommand(StartPaintSession);
+            RefreshMaterials();
 
-            ReplaceWithPrepared_NewCommand = new RelayCommand(BatchReplaceNew);
-            ReplaceWithPrepared_OverwriteCommand = new RelayCommand(BatchOverwrite);
-            RenameAppearanceCommand = new RelayCommand(RenameAppearance);
-            RenameLinkedAppearanceCommand = new RelayCommand(RenameLinkedAppearance);
-            SelectAllUsingSelectedMaterialsCommand = new RelayCommand(SelectAllUsingMaterials);
-            SelectAllUsingSelectedAppearancesCommand = new RelayCommand(SelectAllUsingAppearances);
+            SelectTreeNodeCommand = new RelayCommand<string>(SelectTreeNode);
+            GridTileLeftClickCommand = new RelayCommand<FolderItem>(OnGridTileLeftClick);
+            ToggleGalleryCommand = new RelayCommand(() => IsGallery = !IsGallery);
 
-            RefreshCollectors();
+            SetThumb512Command = new RelayCommand(() => { ThumbSize = 512; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
+            SetThumb1024Command = new RelayCommand(() => { ThumbSize = 1024; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
+            SetThumb2048Command = new RelayCommand(() => { ThumbSize = 2048; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
+
+            GenerateMissingThumbsCommand = new RelayCommand(() => _ = GenerateMissingThumbsForDirectChildrenAsync(CurrentGridRoot ?? "", [128, 512, 1024]));
+            RegenerateAllThumbsCommand = new RelayCommand(() => _ = EnsureThumbsAsync(ThumbSize, overwrite: true, CancellationToken.None));
+
+            CreateCommand = new RelayCommand(() => _ = CreateMaterialAndAppearanceFromParams(), CanCreate);
+            ReplaceCommand = new RelayCommand(() => _ = ReplaceSelectedMaterialAppearanceFromParams(), CanReplace);
+            AssignCommand = new RelayCommand(StartAssignMode, () => SelectedMaterial != null || ProjectMaterials.Count > 0);
+            PipetteCommand = new RelayCommand(StartPipetteOnce);
+
+            Params.OnMaterialNameChanged += OnMaterialNameEdited;
         }
 
-        public ObservableCollection<DirectoryItem> FolderRootNodes { get; } = new();
-        public string RootPath { get; set; }
-        public string CurrentFolderPath { get; set; } = "";
-
-        void LoadFolderTree()
+        void RefreshMaterials()
         {
-            FolderRootNodes.Clear();
-            if (!Directory.Exists(RootPath)) return;
-            var di = new DirectoryInfo(RootPath);
-            var node = new DirectoryItem { Name = di.Name, FullPath = di.FullName };
-            FolderRootNodes.Add(node);
-            CurrentFolderPath = di.FullName;
-            LoadGallery(di.FullName);
-        }
-
-        public ObservableCollection<MapItem> MapGallery { get; } = new();
-        public ObservableCollection<MapSlot> MapSlots { get; } = new();
-
-        void LoadGallery(string folder)
-        {
-            MapGallery.Clear();
-            foreach (var p in MapFileUtils.EnumImages(folder))
-            {
-                var d = MapFileUtils.Detect(p);
-                MapGallery.Add(new MapItem { Name = Path.GetFileName(p), FullPath = p, DetectedLabel = d.label, DetectedIconPath = d.icon });
-            }
-            CurrentFolderPath = folder;
-            if (MapGallery.Count >= 3) DetectAndFillSlots();
-        }
-
-        void DetectAndFillSlots()
-        {
-            MapSlots.Clear();
-            var slotDiff = new MapSlot { DisplayName = "Diffuse", SlotType = MapType.DIFF, IconPath = "Resources/Icons/diffuse.png" };
-            var slotGlos = new MapSlot { DisplayName = "Gloss/Rough", SlotType = MapType.GLOS, IconPath = "Resources/Icons/gloss.png" };
-            var slotRefl = new MapSlot { DisplayName = "Reflect 90°", SlotType = MapType.REFL, IconPath = "Resources/Icons/reflect.png" };
-            var slotBump = new MapSlot { DisplayName = "Bump / Normal / Depth", SlotType = MapType.BUMP, IconPath = "Resources/Icons/bump.png" };
-            var slotOpac = new MapSlot { DisplayName = "Opacity / Transparency", SlotType = MapType.OPAC, IconPath = "Resources/Icons/opacity.png" };
-
-            var all = MapGallery.Select(x => x.FullPath).ToList();
-            foreach (var s in new[] { slotDiff, slotGlos, slotRefl, slotBump, slotOpac })
-                foreach (var p in all) s.Alternatives.Add(p);
-
-            slotDiff.SelectedAlternative = all.FirstOrDefault(p => MapFileUtils.Detect(p).slot == MapType.DIFF);
-            slotGlos.SelectedAlternative = all.FirstOrDefault(p => MapFileUtils.Detect(p).label.StartsWith("Gloss"));
-            if (slotGlos.SelectedAlternative == null)
-                slotGlos.SelectedAlternative = all.FirstOrDefault(p => MapFileUtils.Detect(p).label.StartsWith("Rough"));
-            slotRefl.SelectedAlternative = all.FirstOrDefault(p => MapFileUtils.Detect(p).slot == MapType.REFL);
-            var b = all.FirstOrDefault(p => MapFileUtils.Detect(p).label.StartsWith("Normal")) ??
-                    all.FirstOrDefault(p => MapFileUtils.Detect(p).label.StartsWith("Depth")) ??
-                    all.FirstOrDefault(p => MapFileUtils.Detect(p).label.StartsWith("Bump"));
-            slotBump.SelectedAlternative = b;
-            slotOpac.SelectedAlternative = all.FirstOrDefault(p => MapFileUtils.Detect(p).slot == MapType.OPAC);
-
-            MapSlots.Add(slotDiff);
-            MapSlots.Add(slotGlos);
-            MapSlots.Add(slotRefl);
-            MapSlots.Add(slotBump);
-            MapSlots.Add(slotOpac);
-        }
-
-        public string? GetSlotPath(MapType type) => MapSlots.FirstOrDefault(x => x.SlotType == type)?.AssignedPath;
-
-        public string MaterialName { get; set; } = "MAT_PBR";
-        public string AppearanceName { get; set; } = "APP_PBR";
-        public string? Description { get; set; }
-        public double RealWorldSizeX { get; set; } = 1.0;
-        public double RealWorldSizeY { get; set; } = 1.0;
-        public double RotationAngle { get; set; } = 0.0;
-        public bool GlobalLockInheritDiffuse { get; set; } = true;
-
-        public Color SelectedRevitColor { get; set; } = new Color(200,200,200);
-        public bool UseTintBackground { get; set; } = false;
-
-        public int DivX { get; set; } = 0;
-        public int DivY { get; set; } = 0;
-
-        public ObservableCollection<MaterialItem> ProjectMaterials { get; } = new();
-        public ObservableCollection<AppearanceItem> ProjectAppearances { get; } = new();
-
-        public void RefreshCollectors()
-        {
-            var doc = _uiapp.ActiveUIDocument.Document;
             ProjectMaterials.Clear();
-            ProjectAppearances.Clear();
-            foreach (var m in new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>())
-                ProjectMaterials.Add(new MaterialItem { Id = m.Id, Name = m.Name });
-            foreach (var a in new FilteredElementCollector(doc).OfClass(typeof(AppearanceAssetElement)).Cast<AppearanceAssetElement>())
-                ProjectAppearances.Add(new AppearanceItem { Id = a.Id, Name = a.Name, Description = a.Description });
+            foreach (var m in RevitMaterialService.GetProjectMaterials(_uidoc))
+                ProjectMaterials.Add(m);
         }
 
-        public ICommand PickMaterialFromModelCommand { get; }
-        public ICommand CreatePatternFromDivisionsCommand { get; }
-        public ICommand DoPrimaryActionCommand { get; }
-        public ICommand CopyMaterialCommand { get; }
-        public ICommand StartPaintSessionCommand { get; }
-
-        public ICommand ReplaceWithPrepared_NewCommand { get; }
-        public ICommand ReplaceWithPrepared_OverwriteCommand { get; }
-        public ICommand RenameAppearanceCommand { get; }
-        public ICommand RenameLinkedAppearanceCommand { get; }
-        public ICommand SelectAllUsingSelectedMaterialsCommand { get; }
-        public ICommand SelectAllUsingSelectedAppearancesCommand { get; }
-
-        void PickFromModel()
+        // === Tree → grid of direct subfolders that themselves have subfolders ===
+        public async void SelectTreeNode(string folderPath)
         {
-            ExternalEvents.PickMaterialHandler.Instance.VM = this;
-            ExternalEvents.PickMaterialHandler.Event.Raise();
+            if (string.IsNullOrWhiteSpace(folderPath)) return;
+            CurrentGridRoot = folderPath;
+            Params.FolderPath = folderPath;
+            if (!Directory.Exists(folderPath)) return;
+
+            GridFolders.Clear();
+
+            _thumbCts?.Cancel();
+            _thumbCts = new CancellationTokenSource();
+
+            foreach (var sub in Directory.EnumerateDirectories(folderPath))
+            {
+                if (Directory.EnumerateDirectories(sub).Any())
+                    GridFolders.Add(new FolderItem { FullPath = sub, ThumbSize = ThumbSize }); // Name is derived
+            }
+
+            await EnsureThumbsAsync(ThumbSize, overwrite: false, _thumbCts.Token);
         }
 
-        void CreatePattern()
+        // === Compatibility method for the window (explicit async detection call) ===
+        public async Task DetectMapsForFolderAsync(string folderPath)
         {
-            ExternalEvents.CreatePatternFromDivisionsHandler.Instance.VM = this;
-            ExternalEvents.CreatePatternFromDivisionsHandler.Event.Raise();
+            await Task.Yield();
+
+            MapTypes.Clear();
+            foreach (var s in DetectionService.DetectSlots(folderPath))
+                MapTypes.Add(s);
+
+            // Standard params after detection
+            Params.FolderPath = folderPath;
+            Params.MaterialName = Path.GetFileName(folderPath);
+            Params.WidthCm = 300;
+            Params.HeightCm = 300;
+            Params.RotationDeg = 0;
+            Params.TilesX = 1;
+            Params.TilesY = 1;
+            Params.Tint = (255, 255, 255);
         }
 
-        void DoPrimaryAction()
+        // === Grid tile click (leaf-only detection) ===
+        public void OnGridTileLeftClick(FolderItem? item)
         {
-            ExternalEvents.ReplaceOrPaintHandler.Instance.VM = this;
-            ExternalEvents.ReplaceOrPaintHandler.Event.Raise();
+            if (item == null) return;
+
+            // leaf only
+            if (Directory.EnumerateDirectories(item.FullPath).Any())
+                return;
+
+            if (!FileService.HasKeyImage(item.FullPath))
+            {
+                WpfMessageBox.Show(
+                    "Image-clé manquante : la détection s'exécute uniquement si le dossier contient une image nommée comme le dossier.",
+                    "Détection PBR", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            MapTypes.Clear();
+            foreach (var s in DetectionService.DetectSlots(item.FullPath)) MapTypes.Add(s);
+
+            // Standard params
+            Params.FolderPath = item.FullPath;
+            Params.MaterialName = Path.GetFileName(item.FullPath);
+            Params.WidthCm = 300;
+            Params.HeightCm = 300;
+            Params.RotationDeg = 0;
+            Params.TilesX = 1;
+            Params.TilesY = 1;
+            Params.Tint = (255, 255, 255);
         }
 
-        void CopyMaterial()
+        // === Generate missing thumbs on direct children ===
+        public async Task GenerateMissingThumbsForDirectChildrenAsync(string root, int size)
+            => await GenerateMissingThumbsForDirectChildrenAsync(root, [size]);
+
+        public async Task GenerateMissingThumbsForDirectChildrenAsync(string root, int[] sizes)
         {
-            ExternalEvents.CreateOrUpdateMaterialHandler.Instance.VM = this;
-            ExternalEvents.CreateOrUpdateMaterialHandler.Event.Raise();
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return;
+
+            await Task.Run(() =>
+            {
+                foreach (var sub in Directory.EnumerateDirectories(root))
+                {
+                    foreach (var s in sizes)
+                    {
+                        var name = Path.GetFileName(sub);
+                        var target = Path.Combine(sub, $"{name}_{s}.jpg");
+                        if (!File.Exists(target))
+                            ThumbnailService.GenerateThumb(sub, s, overwrite: false);
+                    }
+                }
+            });
+
+            // refresh grid entries
+            SelectTreeNode(root);
         }
 
-        void StartPaintSession()
+        // === Thumbs generation (STA decode + cancellation) ===
+        async Task EnsureThumbsAsync(int size, bool overwrite, CancellationToken token = default)
         {
-            ExternalEvents.StartPaintSessionHandler.Instance.VM = this;
-            ExternalEvents.StartPaintSessionHandler.Event.Raise();
+            IsThumbWorking = true;
+            ThumbDone = 0;
+            ThumbTotal = GridFolders.Count;
+
+            async Task GenerateOne(FolderItem f)
+            {
+                if (token.IsCancellationRequested) return;
+                await Task.Run(() =>
+                {
+                    var th = new Thread(() =>
+                    {
+                        try { ThumbnailService.GenerateThumb(f.FullPath, size, overwrite); } catch { }
+                    })
+                    {
+                        IsBackground = true
+                    };
+                    th.SetApartmentState(ApartmentState.STA);
+                    th.Start();
+                    th.Join();
+                }, token);
+
+                if (!token.IsCancellationRequested)
+                {
+                    await WpfApp.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        f.ThumbSize = size;
+                        f.TouchThumb();
+                        ThumbDone++;
+                    }, DispatcherPriority.Background, token);
+                }
+            }
+
+            foreach (var f in GridFolders)
+            {
+                if (token.IsCancellationRequested) break;
+                await GenerateOne(f);
+            }
+
+            IsThumbWorking = false;
         }
 
-        void BatchReplaceNew()
+        // === Create / Replace ===
+        bool Ready()
         {
-            ExternalEvents.BatchReplaceNewHandler.Instance.VM = this;
-            ExternalEvents.BatchReplaceNewHandler.Event.Raise();
+            var hasAlbedo = MapTypes.Any(s => s.Type == MapType.Albedo && s.Assigned != null);
+            return hasAlbedo && Params.WidthCm > 0 && Params.HeightCm > 0 && Params.TilesX >= 1 && Params.TilesY >= 1;
         }
+        bool CanCreate() => SelectedMaterial == null && Ready();
+        bool CanReplace() => SelectedMaterial != null && Ready();
 
-        void BatchOverwrite()
+        // expose compatibility APIs the window calls
+        public async Task CreateMaterialAndAppearanceFromParams() { await Task.Yield(); CreateInternal(); }
+        public async Task ReplaceSelectedMaterialAppearanceFromParams() { await Task.Yield(); ReplaceInternal(); }
+
+        void CreateInternal()
         {
-            ExternalEvents.BatchOverwriteHandler.Instance.VM = this;
-            ExternalEvents.BatchOverwriteHandler.Event.Raise();
+            var folder = Params.FolderPath;
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            {
+                WpfMessageBox.Show("Dossier invalide.", "Créer", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var doc = _uidoc.Document;
+            var appearanceName = string.IsNullOrWhiteSpace(Params.MaterialName) ? Path.GetFileName(folder) : Params.MaterialName;
+
+            var app = RevitMaterialService.GetOrCreateAppearanceByFolder(doc, appearanceName);
+            RevitMaterialService.WriteAppearanceFolderPath(app, folder);
+
+            var maps = MapTypes.ToDictionary(s => s.Type, s => (path: s.Assigned?.FullPath, invert: s.Invert));
+            RevitMaterialService.ApplyUiToAppearance(app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+
+            var mat = RevitMaterialService.CreateMaterial(doc, appearanceName, app);
+
+            RefreshMaterials();
+            SelectedMaterial = ProjectMaterials.FirstOrDefault(m => m.Id == mat.Id);
+
+            WpfMessageBox.Show("Matériau créé et sélectionné.", "Créer", MessageBoxButton.OK, MessageBoxImage.Information);
+            CreateCommand.RaiseCanExecuteChanged();
+            ReplaceCommand.RaiseCanExecuteChanged();
         }
 
-        void RenameAppearance()
+        void ReplaceInternal()
         {
-            var doc = _uiapp.ActiveUIDocument.Document;
-            var app = ProjectAppearances.FirstOrDefault(a => a.IsSelected);
-            if (app == null) { Autodesk.Revit.UI.TaskDialog.Show("Renommer", "Sélectionnez une apparence."); return; }
-            var win = System.Windows.Application.Current?.Windows.OfType<Views.MainWindow>().FirstOrDefault();
-            var newName = Views.InputDialog.Show(win!, "Nouveau nom d'apparence :", app.Name);
-            if (string.IsNullOrWhiteSpace(newName)) return;
+            if (SelectedMaterial == null) return;
 
-            using var t = new Transaction(doc, "Renommer apparence");
-            t.Start();
-            var elem = doc.GetElement(app.Id) as AppearanceAssetElement;
-            if (elem != null) elem.Name = NameUtils.GetUniqueAppearanceName(doc, newName);
-            t.Commit();
-            RefreshCollectors();
+            var folder = Params.FolderPath;
+            var doc = _uidoc.Document;
+
+            var (mat, _) = RevitMaterialService.GetMaterialAndAppearance(doc, SelectedMaterial.Value.Id);
+            if (mat == null) return;
+
+            var appearanceName = string.IsNullOrWhiteSpace(Params.MaterialName) ? Path.GetFileName(folder) : Params.MaterialName;
+
+            var app = RevitMaterialService.GetOrCreateAppearanceByFolder(doc, appearanceName);
+            RevitMaterialService.WriteAppearanceFolderPath(app, folder);
+
+            var maps = MapTypes.ToDictionary(s => s.Type, s => (path: s.Assigned?.FullPath, invert: s.Invert));
+            RevitMaterialService.ApplyUiToAppearance(app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+
+            RevitMaterialService.ReplaceMaterialAppearance(mat, app);
+
+            WpfMessageBox.Show("Matériau mis à jour.", "Remplacer", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        void RenameLinkedAppearance()
+        // === Auto-select on name edit ===
+        void OnMaterialNameEdited(string text)
         {
-            var doc = _uiapp.ActiveUIDocument.Document;
-            var mat = ProjectMaterials.FirstOrDefault(m => m.IsSelected);
-            if (mat == null) { Autodesk.Revit.UI.TaskDialog.Show("Renommer", "Sélectionnez un matériau."); return; }
-            var me = doc.GetElement(mat.Id) as Material;
-            if (me == null) return;
-            var appe = doc.GetElement(me.AppearanceAssetId) as AppearanceAssetElement;
-            if (appe == null) { Autodesk.Revit.UI.TaskDialog.Show("Renommer", "Aucune apparence liée."); return; }
-
-            var win = System.Windows.Application.Current?.Windows.OfType<Views.MainWindow>().FirstOrDefault();
-            var newName = Views.InputDialog.Show(win!, "Nouveau nom d'apparence :", appe.Name);
-            if (string.IsNullOrWhiteSpace(newName)) return;
-
-            using var t = new Transaction(doc, "Renommer apparence liée");
-            t.Start();
-            appe.Name = NameUtils.GetUniqueAppearanceName(doc, newName);
-            t.Commit();
-            RefreshCollectors();
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var match = ProjectMaterials.FirstOrDefault(m => m.Name.Equals(text.Trim(), StringComparison.CurrentCultureIgnoreCase));
+            if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
         }
 
-        void SelectAllUsingMaterials()
+        // === When user selects a material from the list ===
+        void OnSelectedMaterialChanged()
         {
-            var uiapp = _uiapp;
-            var set = ProjectMaterials.Where(x => x.IsSelected).Select(x => x.Id).ToList();
-            Utils.HighlightService.HighlightByMaterials(uiapp, set);
+            AssignCommand.RaiseCanExecuteChanged();
+            CreateCommand.RaiseCanExecuteChanged();
+            ReplaceCommand.RaiseCanExecuteChanged();
+
+            if (SelectedMaterial == null) return;
+
+            var res = WpfMessageBox.Show(
+                $"Récupérer les paramètres depuis \"{SelectedMaterial.Value.Name}\" ?",
+                "Paramètres matériau",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.Yes);
+
+            if (res == MessageBoxResult.Yes)
+            {
+                var rb = RevitMaterialService.ReadUiFromAppearanceAndMaterial(_uidoc.Document, SelectedMaterial.Value.Id);
+                if (!string.IsNullOrWhiteSpace(rb.FolderPath)) Params.FolderPath = rb.FolderPath;
+                if (rb.WidthCm > 0) Params.WidthCm = rb.WidthCm;
+                if (rb.HeightCm > 0) Params.HeightCm = rb.HeightCm;
+                Params.RotationDeg = rb.RotationDeg;
+                Params.TilesX = rb.TilesX;
+                Params.TilesY = rb.TilesY;
+                Params.Tint = rb.Tint;
+
+                MapTypes.Clear();
+                foreach (var t in new[] { MapType.Albedo, MapType.Roughness, MapType.Reflection, MapType.Bump, MapType.Refraction, MapType.Illumination })
+                {
+                    var slot = new MapSlot(t);
+                    if (rb.Maps.TryGetValue(t, out var mp) && mp.path != null)
+                    {
+                        slot.Assigned = new MapFile(mp.path, t);
+                        slot.Invert = mp.invert;
+                    }
+                    if (t == MapType.Albedo && rb.Tint.HasValue) slot.Tint = rb.Tint;
+                    MapTypes.Add(slot);
+                }
+            }
         }
 
-        void SelectAllUsingAppearances()
+        // === Assign (paint) mode ===
+        void StartAssignMode()
         {
-            var uiapp = _uiapp;
-            var doc = uiapp.ActiveUIDocument.Document;
-            var selectedApps = ProjectAppearances.Where(x => x.IsSelected).Select(x => x.Id).ToHashSet();
-            var mats = new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>()
-                .Where(m => selectedApps.Contains(m.AppearanceAssetId)).Select(m => m.Id).ToList();
-            Utils.HighlightService.HighlightByMaterials(uiapp, mats);
+            var startMat = SelectedMaterial?.Id ?? ProjectMaterials.FirstOrDefault().Id;
+            if (startMat == ElementId.InvalidElementId)
+            {
+                WpfMessageBox.Show("Aucun matériau disponible...", "ASSIGNER",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var handler = new PaintModeHandler
+            {
+                UiDoc = _uidoc,
+                CurrentMaterialId = startMat,
+                OnMaterialSampled = (matId) =>
+                {
+                    var match = ProjectMaterials.FirstOrDefault(m => m.Id == matId);
+                    if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
+                }
+            };
+
+            var ev = ExternalEvent.Create(handler);
+            handler.OnBegin = () => WpfApp.Current?.Dispatcher.Invoke(() => AppHide?.Invoke());
+            handler.OnEnd = (commit) => WpfApp.Current?.Dispatcher.Invoke(() => AppShow?.Invoke());
+            ev.Raise();
         }
 
-        public ElementId ResolveTargetMaterialId(Document doc)
+        // === Single pipette click ===
+        void StartPipetteOnce()
         {
-            var m = new FilteredElementCollector(doc).OfClass(typeof(Material)).Cast<Material>()
-                .FirstOrDefault(x => x.Name.Equals(MaterialName, StringComparison.OrdinalIgnoreCase));
-            return m?.Id ?? ElementId.InvalidElementId;
+            var handler = new PipetteHandler
+            {
+                UiDoc = _uidoc,
+                OnPicked = (matId) =>
+                {
+                    var match = ProjectMaterials.FirstOrDefault(m => m.Id == matId);
+                    if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
+                    else WpfMessageBox.Show("Le matériau prélevé n'existe pas dans ce projet.", "Pipette",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            };
+            var ev = ExternalEvent.Create(handler);
+            handler.OnBegin = () => WpfApp.Current?.Dispatcher.Invoke(() => AppHide?.Invoke());
+            handler.OnEnd = (ok) => WpfApp.Current?.Dispatcher.Invoke(() => AppShow?.Invoke());
+            ev.Raise();
         }
+
+        // Hooks so the window can hide/show while in Revit pick/paint modes
+        public Action? AppHide { get; set; }
+        public Action? AppShow { get; set; }
     }
 }

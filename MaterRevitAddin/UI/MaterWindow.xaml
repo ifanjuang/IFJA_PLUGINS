@@ -1,0 +1,170 @@
+﻿<Window x:Class="Mater2026.UI.MaterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svc="clr-namespace:Mater2026.Services"
+        Title="Mater 2026" Width="1280" Height="860"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Bool2Vis"/>
+
+        <!-- Folder tile -->
+        <DataTemplate x:Key="FolderTileTemplate">
+            <Border Margin="6" Padding="6" BorderBrush="#555" BorderThickness="1" CornerRadius="8">
+                <StackPanel>
+                    <Border Background="#111" Width="160" Height="160" CornerRadius="6">
+                        <!-- Non-blocking decode via attached property -->
+                        <Image Stretch="UniformToFill"
+                               svc:ImageAsync.AsyncSourcePath="{Binding ThumbPath}"/>
+                    </Border>
+                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- MapType tile -->
+        <DataTemplate x:Key="MapSlotTemplate">
+            <Border Width="160" Height="160" Margin="6" Padding="6" BorderBrush="#666" BorderThickness="1" CornerRadius="8">
+                <StackPanel>
+                    <Border Background="#111" Height="110" CornerRadius="6">
+                        <!-- Show the actual file assigned to the slot (never grid thumbnails) -->
+                        <Image Stretch="UniformToFill" 
+                               svc:ImageAsync.AsyncSourcePath="{Binding Assigned.FullPath}"/>
+                    </Border>
+                    <TextBlock Text="{Binding Type}" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="380"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ========== LEFT COLUMN ========== -->
+        <DockPanel Grid.Column="0" Margin="8">
+            <!-- Root picker -->
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <TextBlock Text="Racine (TreeView)" FontWeight="Bold"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="BtnPickRoot" Content="Choisir…" Click="BtnPickRoot_Click"/>
+                    <TextBox x:Name="RootBox" Margin="6,0,0,0" IsReadOnly="True" Width="220"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Tree (context menu & right-click selection handled in code-behind) -->
+            <TreeView x:Name="Tree"
+                      DockPanel.Dock="Top" Height="300"
+                      SelectedItemChanged="Tree_SelectedItemChanged"
+                      VirtualizingStackPanel.IsVirtualizing="True"
+                      VirtualizingStackPanel.VirtualizationMode="Recycling"
+                      ScrollViewer.CanContentScroll="True"/>
+
+            <!-- Project materials -->
+            <TextBlock Text="Matériaux du projet" FontWeight="Bold" Margin="0,8,0,4"/>
+            <ListBox x:Name="MatList"
+                     DisplayMemberPath="Name"
+                     SelectedValuePath="Id"
+                     SelectionChanged="MatList_SelectionChanged"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Height="32">
+                <Button x:Name="PipetteBtn" Content="Pipette" Click="PipetteBtn_Click" Width="100"/>
+                <Button x:Name="AssignBtn" Content="Assigner" Margin="8,0,0,0" Click="AssignBtn_Click" IsEnabled="False" Width="100"/>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- ========== CENTER COLUMN ========== -->
+        <DockPanel Grid.Column="1" Margin="8">
+            <!-- Toolbar -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,0,0,6">
+                <TextBlock Text="GridView dossier" FontWeight="Bold"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" VerticalAlignment="Center" Margin="0,0,0,6" Width="331">
+                    <TextBlock Text="Taille :" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="ThumbSizeDrop" Width="80" Margin="6,0,12,0"
+                              SelectionChanged="ThumbSizeDrop_SelectionChanged"/>
+                    <Button x:Name="GenMissing" Content="Générer manquants" Click="GenMissing_Click"/>
+                    <!-- Optional toggle; hidden unless you wire a command for gallery mode -->
+                    <ToggleButton x:Name="ToggleGalleryBtn" Content="Galerie ↔ Thumbnails" Margin="12,0,0,0"
+                                  Click="ToggleGallery_Click" Visibility="Collapsed"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Folder thumbnails grid -->
+            <ScrollViewer DockPanel.Dock="Top" Height="380">
+                <ItemsControl x:Name="GridFoldersPanel"
+                              ItemTemplate="{StaticResource FolderTileTemplate}"
+                              PreviewMouseLeftButtonUp="GridFoldersPanel_PreviewMouseLeftButtonUp"
+                              VirtualizingStackPanel.IsVirtualizing="True"
+                              VirtualizingStackPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Map slots -->
+            <TextBlock Text="MapTypes" FontWeight="Bold" Margin="0,8,0,4"/>
+            <ItemsControl x:Name="MapTypesList"
+                          ItemTemplate="{StaticResource MapSlotTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </DockPanel>
+
+        <!-- ========== RIGHT COLUMN (no preview thumbnail here) ========== -->
+        <StackPanel Grid.Column="2" Margin="8" Width="256" HorizontalAlignment="Right">
+            <TextBlock Text="Paramètres" FontWeight="Bold"/>
+
+            <!-- Appearance name (material name can be different in your VM if desired) -->
+            <TextBlock Text="Nom (apparence)" Margin="0,6,0,0"/>
+            <TextBox x:Name="MatNameBox" TextChanged="MatNameBox_TextChanged"/>
+
+            <TextBlock Text="Dossier sélectionné" Margin="0,6,0,0"/>
+            <TextBox x:Name="FolderBox" IsReadOnly="True"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <StackPanel Width="180">
+                    <TextBlock Text="Largeur (cm)"/>
+                    <TextBox x:Name="WidthBox" Text="300"/>
+                </StackPanel>
+                <StackPanel Width="180" Margin="8,0,0,0">
+                    <TextBlock Text="Hauteur (cm)"/>
+                    <TextBox x:Name="HeightBox" Text="300"/>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Text="Rotation (°)" Margin="0,6,0,0"/>
+            <TextBox x:Name="RotBox" Text="0"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <StackPanel Width="180">
+                    <TextBlock Text="Tiles X"/>
+                    <TextBox x:Name="TilesXBox" Text="1"/>
+                </StackPanel>
+                <StackPanel Width="180" Margin="8,0,0,0">
+                    <TextBlock Text="Tiles Y"/>
+                    <TextBox x:Name="TilesYBox" Text="1"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Optional: Tint button with live background preview (wired in code-behind if you added TintBtn_Click) -->
+
+            <Button x:Name="TintBtn" Content="Teinte" Width="80" Margin="0,0,8,0" Click="TintBtn_Click"/>
+
+
+            <StackPanel Margin="0,10,0,0" VerticalAlignment="Bottom" Orientation="Horizontal">
+                <Button x:Name="CreateBtn"  Content="Créer"     Width="120" Click="CreateBtn_Click"/>
+                <Button x:Name="ReplaceBtn" Content="Remplacer" Width="120" Margin="8,0,0,0" Click="ReplaceBtn_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>
