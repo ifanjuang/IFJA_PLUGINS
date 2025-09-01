@@ -28,13 +28,13 @@ namespace Mater2026.Services
                     Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(220, 30, 30, 30)),
                     BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(220, 90, 90, 90)),
                     BorderThickness = new Thickness(1),
-                    Padding = new Thickness(12)
-                };
-                border.Child = new TextBlock
-                {
-                    Text = message,
-                    Foreground = System.Windows.Media.Brushes.White,
-                    VerticalAlignment = VerticalAlignment.Center
+                    Padding = new Thickness(12),
+                    Child = new TextBlock
+                    {
+                        Text = message,
+                        Foreground = System.Windows.Media.Brushes.White,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
                 };
                 w.Content = border;
 

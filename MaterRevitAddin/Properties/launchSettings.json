@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "Mater2026": {
+      "commandName": "Project"
+    },
+    "Revit 2026": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2026\\Revit.exe"
+    }
+  }
+}

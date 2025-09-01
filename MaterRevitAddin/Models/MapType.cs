@@ -4,10 +4,12 @@
     {
         Albedo,
         Roughness,
-        Reflection,
         Bump,
         Refraction,
+        Reflection,
+        Metalness,
         Illumination,
-        Unknown
+        Unknown,
+
     }
 }

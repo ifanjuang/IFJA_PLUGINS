@@ -20,7 +20,7 @@ namespace Mater2026.Services
                 .OfClass(typeof(Material)).Cast<Material>()
                 .OrderBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase);
 
-            return mats.Select(m => (m.Id, m.Name)).ToList();
+            return [.. mats.Select(m => (m.Id, m.Name))];
         }
 
         public static (Material? Mat, AppearanceAssetElement? App) GetMaterialAndAppearance(Document doc, ElementId materialId)
@@ -70,8 +70,7 @@ namespace Mater2026.Services
             {
                 var editable = scope.Start(app.Id);
                 // Description lives on SchemaCommon.Description (Visual namespace)
-                var desc = editable.FindByName(SchemaCommon.Description) as AssetPropertyString;
-                if (desc != null && !desc.IsReadOnly)
+                if (editable.FindByName(SchemaCommon.Description) is AssetPropertyString desc && !desc.IsReadOnly)
                     desc.Value = folderPath ?? string.Empty;
                 scope.Commit(true);
             }
@@ -128,7 +127,7 @@ namespace Mater2026.Services
                 double r01 = Math.Clamp(r / 255.0, 0, 1);
                 double g01 = Math.Clamp(g / 255.0, 0, 1);
                 double b01 = Math.Clamp(b / 255.0, 0, 1);
-                pTintColor.SetValueAsDoubles(new List<double> { r01, g01, b01, 1.0 });
+                pTintColor.SetValueAsDoubles([r01, g01, b01, 1.0]);
             }
         }
 
@@ -162,8 +161,9 @@ namespace Mater2026.Services
 
         public static void ApplyUiToAppearance(
             AppearanceAssetElement app,
-            Dictionary<MapType, (string? path, bool invert)> maps,
-            double widthCm, double heightCm, double rotationDeg, (int r, int g, int b)? tint)
+            IDictionary<MapType, (string? path, bool invert, string? detail)> maps,
+            double widthCm, double heightCm, double rotationDeg,
+            (int r, int g, int b)? tint)
         {
             var doc = app.Document;
             using var tx = new Transaction(doc, "Apply Appearance");
@@ -173,30 +173,106 @@ namespace Mater2026.Services
             {
                 var editable = scope.Start(app.Id);
 
-                void SetSlot(string slot, MapType type, bool allowInvert = false, bool setTint = false)
-                {
-                    var ub = GetUBFromSlot(editable, slot);
-                    if (ub == null) return;
 
-                    maps.TryGetValue(type, out var val);
-                    var invert = allowInvert && val.invert;
-                    SetUBCore(ub, val.path, invert, widthCm, heightCm, rotationDeg);
-                    if (setTint) SetUBOverlayTint(ub, tint);
+                static Asset? GetSlotAsset(Asset root, string slotName)
+                {
+                    var prop = root.FindByName(slotName) as AssetProperty;
+                    return prop?.GetSingleConnectedAsset();
                 }
 
-                SetSlot("generic_diffuse", MapType.Albedo, false, true);
-                SetSlot("generic_glossiness", MapType.Roughness, true);
-                SetSlot("generic_roughness", MapType.Roughness, true);
-                SetSlot("generic_bump_map", MapType.Bump);
-                SetSlot("generic_reflectivity_at_0deg", MapType.Reflection);
-                SetSlot("generic_transparency", MapType.Refraction);
-                SetSlot("generic_emission_color", MapType.Illumination);
+                void SetSlotBitmap(string slotName,
+                   (string? path, bool invert, string? detail) val,
+                   bool allowInvert = false,
+                   bool applyTint = false)
+                {
+                    if (string.IsNullOrWhiteSpace(val.path)) return;
+                    var ub = GetUBFromSlot(editable, slotName);
+                    if (ub == null) return;
+
+                    // write bitmap + sizing/rotation (+ optional invert)
+                    SetUBCore(ub,
+                              val.path!,
+                              allowInvert ? val.invert : null,
+                              widthCm,
+                              heightCm,
+                              rotationDeg);
+
+                    if (applyTint) SetUBOverlayTint(ub, tint);
+                }
+
+                void SetBumpSlot(Asset editable,
+                 (string path, bool invert, string? detail)? bumpMap,
+                 double widthCm, double heightCm, double rotationDeg)
+                {
+                    var bm = GetSlotAsset(editable, "generic_bump_map");
+                    if (bm == null || bumpMap is not { } b) return;
+
+                    // ---- file path
+                    var pBitmap = FindProp<AssetPropertyString>(bm,
+                        "BumpMap.BumpmapBitmap", "bumpmap_Bitmap", "bumpmap.bitmap");
+                    if (pBitmap != null && !pBitmap.IsReadOnly) pBitmap.Value = b.path;
+
+                    // ---- type (Height/Bump vs Normal). Commonly 0=Height(Bump), 1=Normal
+                    var pType = FindProp<AssetPropertyInteger>(bm,
+                        "BumpMap.BumpmapType", "bumpmap_Type");
+                    if (pType != null && !pType.IsReadOnly)
+                        pType.Value = string.Equals(b.detail, "Normal", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+                    // ---- strength controls (pick one that applies)
+                    var pNormalAmt = FindProp<AssetPropertyDouble>(bm,
+                        "BumpMap.BumpmapNormalScale", "bumpmap_NormalScale");
+                    var pDepthAmt = FindProp<AssetPropertyDouble>(bm,
+                        "BumpMap.BumpmapDepth", "bumpmap_Amount", "bumpmap_Height");
+
+                    if (string.Equals(b.detail, "Normal", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (pNormalAmt != null && !pNormalAmt.IsReadOnly) pNormalAmt.Value = 1.0;
+                    }
+                    else
+                    {
+                        if (pDepthAmt != null && !pDepthAmt.IsReadOnly) pDepthAmt.Value = 1.0;
+                    }
+
+                    // ---- transforms
+                    var pSX = FindProp<AssetPropertyDouble>(bm,
+                        "BumpMap.TextureRealWorldScaleX", "texture_RealWorldScaleX", "UnifiedBitmap.RealWorldScaleX");
+                    var pSY = FindProp<AssetPropertyDouble>(bm,
+                        "BumpMap.TextureRealWorldScaleY", "texture_RealWorldScaleY", "UnifiedBitmap.RealWorldScaleY");
+                    var pRot = FindProp<AssetPropertyDouble>(bm,
+                        "BumpMap.TextureWAngle", "texture_WAngle", "UnifiedBitmap.Rotation");
+
+                    if (pSX != null && !pSX.IsReadOnly) pSX.Value = widthCm / 100.0;
+                    if (pSY != null && !pSY.IsReadOnly) pSY.Value = heightCm / 100.0;
+                    if (pRot != null && !pRot.IsReadOnly) pRot.Value = rotationDeg;
+                }
+
+                // Albedo (with optional tint overlay on the unified bitmap)
+                if (maps.TryGetValue(MapType.Albedo, out var alb))
+                    SetSlotBitmap("generic_diffuse", alb, allowInvert: false, applyTint: true);
+
+                // Roughness OR Glossiness (invert==true => Glossiness)
+                if (maps.TryGetValue(MapType.Roughness, out var rg) && !string.IsNullOrWhiteSpace(rg.path))
+                {
+                    if (rg.invert) SetSlotBitmap("generic_glossiness", rg);
+                    else SetSlotBitmap("generic_roughness", rg);
+                }
+                if (maps.TryGetValue(MapType.Reflection, out var refl))
+                    SetSlotBitmap("generic_reflectivity_at_0deg", refl);
+                if (maps.TryGetValue(MapType.Refraction, out var refr))
+                    SetSlotBitmap("generic_transparency", refr);
+                if (maps.TryGetValue(MapType.Illumination, out var emis))
+                    SetSlotBitmap("generic_emission_color", emis);
+                if (maps.TryGetValue(MapType.Bump, out var b) && !string.IsNullOrWhiteSpace(b.path))
+                    SetBumpSlot(editable, (b.path!, b.invert, b.detail), widthCm, heightCm, rotationDeg);
+
 
                 scope.Commit(true);
             }
 
             tx.Commit();
         }
+
+
 
         public static UiReadback ReadUiFromAppearanceAndMaterial(Document doc, ElementId materialId)
         {
@@ -207,20 +283,46 @@ namespace Mater2026.Services
             var asset = app.GetRenderingAsset();
             rb.FolderPath = ReadAppearanceFolderPath(app);
 
+            static (string? path, string? detail, double? sx, double? sy, double? rot) ReadBumpAll(Asset bm)
+            {
+                var pBitmap = FindProp<AssetPropertyString>(bm,
+                    "BumpMap.BumpmapBitmap", "bumpmap_Bitmap", "bumpmap.bitmap");
+                var pType = FindProp<AssetPropertyInteger>(bm,
+                    "BumpMap.BumpmapType", "bumpmap_Type");
+                var pSX = FindProp<AssetPropertyDouble>(bm,
+                    "BumpMap.TextureRealWorldScaleX", "texture_RealWorldScaleX", "UnifiedBitmap.RealWorldScaleX");
+                var pSY = FindProp<AssetPropertyDouble>(bm,
+                    "BumpMap.TextureRealWorldScaleY", "texture_RealWorldScaleY", "UnifiedBitmap.RealWorldScaleY");
+                var pRot = FindProp<AssetPropertyDouble>(bm,
+                    "BumpMap.TextureWAngle", "texture_WAngle", "UnifiedBitmap.Rotation");
+
+                string? detail = pType?.Value == 1 ? "Normal" : "Depth"; // 0=>Height/Depth, 1=>Normal (adjust if you confirm different)
+                return (pBitmap?.Value, detail, pSX?.Value, pSY?.Value, pRot?.Value);
+            }
+
+
             (string? path, bool inv, (int r, int g, int b)? tint, double? sx, double? sy, double? rot) Probe(string slot)
             {
                 var ub = GetUBFromSlot(asset, slot);
                 if (ub == null) return (null, false, null, null, null, null);
                 return ReadUBAll(ub);
             }
-
             var albedo = Probe("generic_diffuse");
             var gloss = Probe("generic_glossiness");
             var rough = Probe("generic_roughness");
-            var bump = Probe("generic_bump_map");
+
             var refl = Probe("generic_reflectivity_at_0deg");
             var refr = Probe("generic_transparency");
             var emis = Probe("generic_emission_color");
+
+            (string? path, string? detail, double? sx, double? sy, double? rot) ProbeBump()
+            {
+                var bm = GetUBFromSlot(asset, "generic_bump_map"); // returns the connected asset (BumpMap)
+                if (bm == null) return (null, null, null, null, null);
+                var r = ReadBumpAll(bm);
+                return r;
+            }
+            var bump = ProbeBump();
 
             if (albedo.path != null) rb.Maps[MapType.Albedo] = (albedo.path, false);
             if (gloss.path != null) rb.Maps[MapType.Roughness] = (gloss.path, true);

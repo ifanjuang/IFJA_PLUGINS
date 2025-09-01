@@ -8,15 +8,14 @@ namespace Mater2026.Services
     public static class FileService
     {
         // Supported source image extensions (case-insensitive)
-        private static readonly HashSet<string> ImgExt = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"
-        };
+        public static readonly string[] ImgExt = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"];
 
-        /// <summary>
-        /// A "key image" is an image whose filename matches the folder name (any supported extension).
-        /// e.g. MyFolder\MyFolder.jpg
-        /// </summary>
+        public static bool IsImage(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            var ext = Path.GetExtension(path);
+            return ImgExt.Contains(ext, StringComparer.OrdinalIgnoreCase);
+        }
         public static bool HasKeyImage(string folder)
         {
             var name = GetLeafName(folder);
@@ -27,13 +26,6 @@ namespace Mater2026.Services
             }
             return false;
         }
-
-        /// <summary>
-        /// Enumerate "original" images only:
-        /// - must be a supported extension
-        /// - exclude resized *_128/_512/_1024
-        /// - exclude files containing "thumb" in the name
-        /// </summary>
         public static IEnumerable<string> EnumerateOriginals(string folder)
         {
             if (!Directory.Exists(folder)) yield break;
@@ -50,12 +42,6 @@ namespace Mater2026.Services
                 yield return f;
             }
         }
-
-        /// <summary>
-        /// Return the best source image to base a thumbnail on:
-        /// 1) exact key image (folderName.{ext})
-        /// 2) else the largest existing resized thumb: _1024 → _512 → _128 (jpg)
-        /// </summary>
         public static string? ResolveThumbSource(string folder)
         {
             var name = GetLeafName(folder);

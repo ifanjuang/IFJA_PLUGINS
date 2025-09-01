@@ -59,7 +59,6 @@
 		<Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(RevitMaterDir)" SkipUnchangedFiles="true" />
 		<Copy SourceFiles="$(TargetDir)Mater2026.addin" DestinationFolder="$(RevitAddinsDir)" SkipUnchangedFiles="true" />
 
-		<Error Condition="!Exists('$(RevitMaterDir)\Mater2026.dll')"
-			   Text="Mater2026.dll was not deployed to $(RevitMaterDir). Check PlatformTarget=x64 and build OutputPath." />
+		<Error Condition="!Exists('$(RevitMaterDir)\Mater2026.dll')" Text="Mater2026.dll was not deployed to $(RevitMaterDir). Check PlatformTarget=x64 and build OutputPath." />
 	</Target>
 </Project>

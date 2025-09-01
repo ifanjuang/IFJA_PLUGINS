@@ -6,10 +6,6 @@ namespace Mater2026.Services
 {
     public static class ThumbnailService
     {
-        /// <summary>
-        /// Generate a {folderName}_{size}.jpg thumbnail from the best source in the folder.
-        /// If overwrite=false, only creates when missing or older than source.
-        /// </summary>
         public static string GenerateThumb(string folder, int size, bool overwrite)
         {
             var name = Path.GetFileName(folder);
@@ -26,25 +22,39 @@ namespace Mater2026.Services
             try
             {
                 var abs = Path.GetFullPath(src);
+
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(abs, UriKind.Absolute); // <— ensure absolute, correct overload
+                bmp.UriSource = new Uri(abs, UriKind.Absolute); // correct overload
                 if (size > 0) bmp.DecodePixelWidth = size;
                 bmp.EndInit();
                 bmp.Freeze();
 
                 var enc = new JpegBitmapEncoder { QualityLevel = 88 };
                 enc.Frames.Add(BitmapFrame.Create(bmp));
+
                 using var fs = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.Read);
                 enc.Save(fs);
             }
             catch
             {
-                // swallow; caller can decide to show a toast if needed
+                // Swallow; callers refresh UI based on what exists.
             }
 
             return target;
         }
+        public static void SetFolderThumbnailFromImage(string folder, string imagePath)
+        {
+            if (!Directory.Exists(folder) || !File.Exists(imagePath)) return;
+            var ext = Path.GetExtension(imagePath);
+            var name = Path.GetFileName(folder);
+            var target = Path.Combine(folder, name + ext);
+
+            File.Copy(imagePath, target, overwrite: true);
+            foreach (var s in new[] { 128, 512, 1024 })
+                GenerateThumb(folder, s, overwrite: true);
+        }
+
     }
 }

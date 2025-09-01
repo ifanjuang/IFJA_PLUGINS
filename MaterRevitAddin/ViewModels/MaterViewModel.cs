@@ -21,7 +21,7 @@ namespace Mater2026.ViewModels
     {
         // === Collections bound to UI ===
         public ObservableCollection<FolderItem> GridFolders { get; } = [];
-        public ObservableCollection<(ElementId Id, string Name)> ProjectMaterials { get; } = [];
+        public ObservableCollection<MaterialListItem> ProjectMaterials { get; } = [];
         public ObservableCollection<MapSlot> MapTypes { get; } = [];
 
         // Parameters bucket
@@ -29,7 +29,10 @@ namespace Mater2026.ViewModels
 
         private readonly UIApplication _uiapp;
         private readonly UIDocument _uidoc;
+
+        // Thumb job lifecycle
         private CancellationTokenSource? _thumbCts;
+        private Task? _thumbTask;
 
         // === Commands the window wires ===
         public RelayCommand<string> SelectTreeNodeCommand { get; }
@@ -63,8 +66,8 @@ namespace Mater2026.ViewModels
             }
         }
 
-        private (ElementId Id, string Name)? _selectedMaterial;
-        public (ElementId Id, string Name)? SelectedMaterial
+        private MaterialListItem? _selectedMaterial;
+        public MaterialListItem? SelectedMaterial
         {
             get => _selectedMaterial;
             set { _selectedMaterial = value; OnPropertyChanged(); OnSelectedMaterialChanged(); }
@@ -84,6 +87,34 @@ namespace Mater2026.ViewModels
         public event PropertyChangedEventHandler? PropertyChanged;
         void OnPropertyChanged([CallerMemberName] string? n = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
 
+        // Restart (cancel + relaunch) the thumbnail pass safely
+        public void RestartThumbJob(int size, bool overwrite)
+        {
+            var previousTask = _thumbTask;          // hold onto the old task
+            var oldCts = _thumbCts;                 // and its CTS
+            _thumbCts = new CancellationTokenSource();
+
+            // cancel the previous run
+            oldCts?.Cancel();
+
+            // kick the new run
+            _thumbTask = EnsureThumbsAsync(size, overwrite, _thumbCts.Token);
+
+            // when the previous run finally ends, dispose its CTS
+            if (previousTask != null && oldCts != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await previousTask; }
+                    catch { /* ignored */ }
+                    finally { try { oldCts.Dispose(); } catch { } }
+                });
+            }
+        }
+
+        // Optional: handy await-er for callers who want to wait until idle
+        public Task WhenThumbsIdleAsync() => _thumbTask ?? Task.CompletedTask;
+
         public MaterViewModel(UIApplication uiapp)
         {
             _uiapp = uiapp;
@@ -95,12 +126,12 @@ namespace Mater2026.ViewModels
             GridTileLeftClickCommand = new RelayCommand<FolderItem>(OnGridTileLeftClick);
             ToggleGalleryCommand = new RelayCommand(() => IsGallery = !IsGallery);
 
-            SetThumb512Command = new RelayCommand(() => { ThumbSize = 512; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
-            SetThumb1024Command = new RelayCommand(() => { ThumbSize = 1024; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
-            SetThumb2048Command = new RelayCommand(() => { ThumbSize = 2048; _ = EnsureThumbsAsync(ThumbSize, overwrite: false, CancellationToken.None); });
+            SetThumb512Command = new RelayCommand(() => { ThumbSize = 512; RestartThumbJob(ThumbSize, overwrite: false); });
+            SetThumb1024Command = new RelayCommand(() => { ThumbSize = 1024; RestartThumbJob(ThumbSize, overwrite: false); });
+            SetThumb2048Command = new RelayCommand(() => { ThumbSize = 2048; RestartThumbJob(ThumbSize, overwrite: false); });
 
             GenerateMissingThumbsCommand = new RelayCommand(() => _ = GenerateMissingThumbsForDirectChildrenAsync(CurrentGridRoot ?? "", [128, 512, 1024]));
-            RegenerateAllThumbsCommand = new RelayCommand(() => _ = EnsureThumbsAsync(ThumbSize, overwrite: true, CancellationToken.None));
+            RegenerateAllThumbsCommand = new RelayCommand(() => RestartThumbJob(ThumbSize, overwrite: true));
 
             CreateCommand = new RelayCommand(() => _ = CreateMaterialAndAppearanceFromParams(), CanCreate);
             ReplaceCommand = new RelayCommand(() => _ = ReplaceSelectedMaterialAppearanceFromParams(), CanReplace);
@@ -113,12 +144,12 @@ namespace Mater2026.ViewModels
         void RefreshMaterials()
         {
             ProjectMaterials.Clear();
-            foreach (var m in RevitMaterialService.GetProjectMaterials(_uidoc))
-                ProjectMaterials.Add(m);
+            foreach (var (id, name) in RevitMaterialService.GetProjectMaterials(_uidoc))
+                ProjectMaterials.Add(new MaterialListItem { Id = id, Name = name });
         }
 
-        // === Tree → grid of direct subfolders that themselves have subfolders ===
-        public async void SelectTreeNode(string folderPath)
+        // === Tree → grid of direct subfolders (show ALL direct children; leaf handled on click) ===
+        public void SelectTreeNode(string folderPath)
         {
             if (string.IsNullOrWhiteSpace(folderPath)) return;
             CurrentGridRoot = folderPath;
@@ -127,16 +158,12 @@ namespace Mater2026.ViewModels
 
             GridFolders.Clear();
 
-            _thumbCts?.Cancel();
-            _thumbCts = new CancellationTokenSource();
-
+            // Show ALL direct children in the grid (leaf & non-leaf)
             foreach (var sub in Directory.EnumerateDirectories(folderPath))
-            {
-                if (Directory.EnumerateDirectories(sub).Any())
-                    GridFolders.Add(new FolderItem { FullPath = sub, ThumbSize = ThumbSize }); // Name is derived
-            }
+                GridFolders.Add(new FolderItem { FullPath = sub, ThumbSize = ThumbSize }); // Name is derived
 
-            await EnsureThumbsAsync(ThumbSize, overwrite: false, _thumbCts.Token);
+            // launch (or relaunch) the thumb pass
+            RestartThumbJob(ThumbSize, overwrite: false);
         }
 
         // === Compatibility method for the window (explicit async detection call) ===
@@ -164,7 +191,7 @@ namespace Mater2026.ViewModels
         {
             if (item == null) return;
 
-            // leaf only
+            // leaf only → if it has subdirectories, user should navigate deeper
             if (Directory.EnumerateDirectories(item.FullPath).Any())
                 return;
 
@@ -191,17 +218,17 @@ namespace Mater2026.ViewModels
         }
 
         // === Generate missing thumbs on direct children ===
-        public async Task GenerateMissingThumbsForDirectChildrenAsync(string root, int size)
-            => await GenerateMissingThumbsForDirectChildrenAsync(root, [size]);
+        public Task GenerateMissingThumbsForDirectChildrenAsync(string root, int size)
+            => GenerateMissingThumbsForDirectChildrenAsync(root, [size]);
 
         public async Task GenerateMissingThumbsForDirectChildrenAsync(string root, int[] sizes)
         {
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return;
+            // avoid fighting the active decode
+            await WhenThumbsIdleAsync();
 
             await Task.Run(() =>
             {
                 foreach (var sub in Directory.EnumerateDirectories(root))
-                {
                     foreach (var s in sizes)
                     {
                         var name = Path.GetFileName(sub);
@@ -209,54 +236,51 @@ namespace Mater2026.ViewModels
                         if (!File.Exists(target))
                             ThumbnailService.GenerateThumb(sub, s, overwrite: false);
                     }
-                }
             });
 
-            // refresh grid entries
+            // refresh grid and re-run thumb job for current size (no overwrite)
             SelectTreeNode(root);
+            RestartThumbJob(ThumbSize, overwrite: false);
         }
 
-        // === Thumbs generation (STA decode + cancellation) ===
+        // === Thumbs worker (snapshot + UI-dispatch) ===
         async Task EnsureThumbsAsync(int size, bool overwrite, CancellationToken token = default)
         {
             IsThumbWorking = true;
-            ThumbDone = 0;
-            ThumbTotal = GridFolders.Count;
 
-            async Task GenerateOne(FolderItem f)
+            // snapshot to avoid “Collection was modified” while you repopulate GridFolders
+            var folders = GridFolders.ToArray();
+            ThumbDone = 0;
+            ThumbTotal = folders.Length;
+
+            foreach (var f in folders)
             {
-                if (token.IsCancellationRequested) return;
+                if (token.IsCancellationRequested) break;
+
+                // heavy IO/encode off the UI thread; some codecs need STA
                 await Task.Run(() =>
                 {
-                    var th = new Thread(() =>
+                    var th = new System.Threading.Thread(() =>
                     {
                         try { ThumbnailService.GenerateThumb(f.FullPath, size, overwrite); } catch { }
                     })
                     {
                         IsBackground = true
                     };
-                    th.SetApartmentState(ApartmentState.STA);
+                    th.SetApartmentState(System.Threading.ApartmentState.STA);
                     th.Start();
                     th.Join();
                 }, token);
 
-                if (!token.IsCancellationRequested)
-                {
-                    await WpfApp.Current.Dispatcher.InvokeAsync(() =>
-                    {
-                        f.ThumbSize = size;
-                        f.TouchThumb();
-                        ThumbDone++;
-                    }, DispatcherPriority.Background, token);
-                }
-            }
-
-            foreach (var f in GridFolders)
-            {
                 if (token.IsCancellationRequested) break;
-                await GenerateOne(f);
-            }
 
+                await WpfApp.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    f.ThumbSize = size;
+                    f.TouchThumb(); // re-pick _{size}.jpg or fallback
+                    ThumbDone++;
+                }, DispatcherPriority.Background, token);
+            }
             IsThumbWorking = false;
         }
 
@@ -287,8 +311,18 @@ namespace Mater2026.ViewModels
             var app = RevitMaterialService.GetOrCreateAppearanceByFolder(doc, appearanceName);
             RevitMaterialService.WriteAppearanceFolderPath(app, folder);
 
-            var maps = MapTypes.ToDictionary(s => s.Type, s => (path: s.Assigned?.FullPath, invert: s.Invert));
-            RevitMaterialService.ApplyUiToAppearance(app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+            IDictionary<MapType, (string? path, bool invert, string? detail)> maps =
+            MapTypes
+                .Where(s => s.Assigned != null)
+                .ToDictionary(
+                    s => s.Type,
+                    s => (path: (string?)s.Assigned!.FullPath, invert: s.Invert, detail: s.Detail)
+                );
+
+            RevitMaterialService.ApplyUiToAppearance(
+                app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+
+
 
             var mat = RevitMaterialService.CreateMaterial(doc, appearanceName, app);
 
@@ -304,10 +338,10 @@ namespace Mater2026.ViewModels
         {
             if (SelectedMaterial == null) return;
 
-            var folder = Params.FolderPath;
+            var folder = Params.FolderPath ?? "";
             var doc = _uidoc.Document;
 
-            var (mat, _) = RevitMaterialService.GetMaterialAndAppearance(doc, SelectedMaterial.Value.Id);
+            var (mat, _) = RevitMaterialService.GetMaterialAndAppearance(doc, SelectedMaterial.Id);
             if (mat == null) return;
 
             var appearanceName = string.IsNullOrWhiteSpace(Params.MaterialName) ? Path.GetFileName(folder) : Params.MaterialName;
@@ -315,8 +349,17 @@ namespace Mater2026.ViewModels
             var app = RevitMaterialService.GetOrCreateAppearanceByFolder(doc, appearanceName);
             RevitMaterialService.WriteAppearanceFolderPath(app, folder);
 
-            var maps = MapTypes.ToDictionary(s => s.Type, s => (path: s.Assigned?.FullPath, invert: s.Invert));
-            RevitMaterialService.ApplyUiToAppearance(app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+            IDictionary<MapType, (string? path, bool invert, string? detail)> maps =
+            MapTypes
+                .Where(s => s.Assigned != null)
+                .ToDictionary(
+                    s => s.Type,
+                    s => (path: (string?)s.Assigned!.FullPath, invert: s.Invert, detail: s.Detail)
+                );
+
+            RevitMaterialService.ApplyUiToAppearance(
+                app, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
+
 
             RevitMaterialService.ReplaceMaterialAppearance(mat, app);
 
@@ -328,7 +371,7 @@ namespace Mater2026.ViewModels
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             var match = ProjectMaterials.FirstOrDefault(m => m.Name.Equals(text.Trim(), StringComparison.CurrentCultureIgnoreCase));
-            if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
+            if (match != null) SelectedMaterial = match;
         }
 
         // === When user selects a material from the list ===
@@ -341,7 +384,7 @@ namespace Mater2026.ViewModels
             if (SelectedMaterial == null) return;
 
             var res = WpfMessageBox.Show(
-                $"Récupérer les paramètres depuis \"{SelectedMaterial.Value.Name}\" ?",
+                $"Récupérer les paramètres depuis \"{SelectedMaterial.Name}\" ?",
                 "Paramètres matériau",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question,
@@ -349,7 +392,7 @@ namespace Mater2026.ViewModels
 
             if (res == MessageBoxResult.Yes)
             {
-                var rb = RevitMaterialService.ReadUiFromAppearanceAndMaterial(_uidoc.Document, SelectedMaterial.Value.Id);
+                var rb = RevitMaterialService.ReadUiFromAppearanceAndMaterial(_uidoc.Document, SelectedMaterial.Id);
                 if (!string.IsNullOrWhiteSpace(rb.FolderPath)) Params.FolderPath = rb.FolderPath;
                 if (rb.WidthCm > 0) Params.WidthCm = rb.WidthCm;
                 if (rb.HeightCm > 0) Params.HeightCm = rb.HeightCm;
@@ -368,6 +411,14 @@ namespace Mater2026.ViewModels
                         slot.Invert = mp.invert;
                     }
                     if (t == MapType.Albedo && rb.Tint.HasValue) slot.Tint = rb.Tint;
+                    else if (t == MapType.Bump && slot.Assigned != null)
+                    {
+                        var n = System.IO.Path.GetFileNameWithoutExtension(slot.Assigned.FullPath);
+                        if (n.Contains("normal", StringComparison.OrdinalIgnoreCase)) slot.Detail = "Normal";
+                        else if (n.Contains("height", StringComparison.OrdinalIgnoreCase) ||
+                                 n.Contains("depth", StringComparison.OrdinalIgnoreCase)) slot.Detail = "Height";
+                        else slot.Detail = "Bump";
+                    }
                     MapTypes.Add(slot);
                 }
             }
@@ -376,7 +427,9 @@ namespace Mater2026.ViewModels
         // === Assign (paint) mode ===
         void StartAssignMode()
         {
-            var startMat = SelectedMaterial?.Id ?? ProjectMaterials.FirstOrDefault().Id;
+            var first = ProjectMaterials.FirstOrDefault();
+            var startMat = SelectedMaterial?.Id ?? first?.Id ?? ElementId.InvalidElementId;
+
             if (startMat == ElementId.InvalidElementId)
             {
                 WpfMessageBox.Show("Aucun matériau disponible...", "ASSIGNER",
@@ -391,7 +444,7 @@ namespace Mater2026.ViewModels
                 OnMaterialSampled = (matId) =>
                 {
                     var match = ProjectMaterials.FirstOrDefault(m => m.Id == matId);
-                    if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
+                    if (match != null) SelectedMaterial = match;
                 }
             };
 
@@ -410,7 +463,7 @@ namespace Mater2026.ViewModels
                 OnPicked = (matId) =>
                 {
                     var match = ProjectMaterials.FirstOrDefault(m => m.Id == matId);
-                    if (match.Id != ElementId.InvalidElementId) SelectedMaterial = match;
+                    if (match != null) SelectedMaterial = match;
                     else WpfMessageBox.Show("Le matériau prélevé n'existe pas dans ce projet.", "Pipette",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
