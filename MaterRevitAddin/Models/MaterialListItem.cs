@@ -2,9 +2,16 @@
 
 namespace Mater2026.Models
 {
-    public class MaterialListItem
+    public sealed class MaterialListItem
     {
-        public ElementId Id { get; init; } = ElementId.InvalidElementId;
-        public string Name { get; init; } = string.Empty;
+        public long Id { get; }
+        public string Name { get; }
+
+        public MaterialListItem(Material m)
+        {
+            Id = m.Id.Value;                // Revit 2026 → .Value (Int64)
+            Name = m.Name ?? $"Material_{Id}";
+        }
+        public override string ToString() => Name;
     }
 }

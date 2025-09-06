@@ -37,6 +37,8 @@ namespace Mater2026.UI
         {
             InitializeComponent();
             VM = new MaterViewModel(uiapp);
+            VM.AppHide = () => Dispatcher.Invoke(Hide);
+            VM.AppShow = () => Dispatcher.Invoke(Show);
             DataContext = new { VM };
 
             // Bind lists

@@ -1,67 +1,75 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
+using System.Text.RegularExpressions;
 using Mater2026.Models;
 
 namespace Mater2026.Services
 {
     public static class MapDetect
     {
-        static readonly string[] DIFF = ["albedo", "diffuse", "colour", "color", "rgb", "clr", "col", "diff"];
-        static readonly string[] NORM = ["normalgl", "normaldx", "normalmap", "normal", "nrm", "nrml", "norm", "nor"];
-        static readonly string[] DISP = ["displacement", "displace", "parallax", "height", "depth", "disp", "hgt", "hght"];
-        static readonly string[] BUMP = ["bumpmap", "bump", "bmp"];
-        static readonly string[] GLOS = ["glossiness", "smoothness", "smooth", "gloss", "gls"];
-        static readonly string[] ROUG = ["roughness", "rough", "rgh"];
-        static readonly string[] REFL = ["specularity", "specular", "reflectance", "reflection", "reflect", "refl", "spec", "ref"];
-        static readonly string[] METL = ["metalness", "metallic", "metal", "met"];
-        static readonly string[] OPAC = ["opacitymask", "alphamasked", "transparency", "translucency", "translucent", "alpha", "mask", "cutout", "opacity", "opac", "opa"];
-        static readonly string[] AO = ["ambientocclusion", "occ", "ao"];
-        static readonly string[] EMIS = ["incandescence", "luminance", "selfillumination", "selfillum", "emission", "emissive", "emit", "glow"];
-
-        static string Norm(string name)
+        // Règles ordonnées par priorité
+        private static readonly (MapType type, string[] keys, int prio)[] Rules = new[]
         {
-            var s = Path.GetFileNameWithoutExtension(name).ToLowerInvariant();
-            Span<char> buf = stackalloc char[s.Length];
-            int j = 0;
-            foreach (var c in s)
-                if (c != ' ' && c != '-' && c != '_' && c != '.') buf[j++] = c;
-            s = new string(buf[..j]);
+            (MapType.Albedo, new[]{
+                "albedo","basecolor","base-colo","base_col","base col",
+                "diffuse","diff","color","colour","baseclr","albd"}, 3),
 
-            // strip size tokens
-            s = s.Replace("1k", "").Replace("2k", "").Replace("4k", "").Replace("8k", "")
-                 .Replace("1024", "").Replace("2048", "").Replace("4096", "").Replace("8192", "");
+            (MapType.Bump, new[]{
+                "normalgl","normaldx","normalmap","normal","nrm","nrml","norm","nor",
+                "height","disp","displace","parallax","bumpmap","bump","par"}, 2),
 
+            (MapType.Roughness, new[]{ "roughness","rough","rgh","glossiness","smoothness","smooth","gloss","gls" }, 2),
+
+            (MapType.Reflection, new[]{ "specularity","specular","spec","reflectance","reflection","reflect","refl" }, 1),
+
+            (MapType.Metalness, new[]{ "metalness","metallic","metal","met" }, 1),
+
+            (MapType.Refraction, new[]{ "opacity","opac","alpha","mask","transmission","translucency" }, 1),
+
+            (MapType.Illumination, new[]{ "emissive","emission","emit","selfillum","illum" }, 1),
+        };
+
+        private static readonly string[] VendorTokens = new[]{
+            "udim","1001","1002","1003",
+            "1k","2k","4k","8k","16k","1024","2048","4096","8192",
+            "ue4","ue5","unity","marmoset",
+            "quixel","megascans","arroway","cgaxis","ambientcg","polyhaven","texturehaven","cc0"
+        };
+
+        private static string Norm(string path)
+        {
+            var s = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+            s = Regex.Replace(s, @"[ \-_.]", "");
+            foreach (var t in VendorTokens) s = s.Replace(t, "");
+            s = s.Replace("basecolour", "basecolor");
             return s;
-        }
-
-        static bool EndsWithAny(string s, string[] arr)
-        {
-            foreach (var a in arr)
-                if (s.EndsWith(a, StringComparison.Ordinal)) return true;
-            return false;
         }
 
         public static (MapType type, bool invert, string label) Detect(string file)
         {
             var n = Norm(file);
 
-            // Rough/Gloss — set invert=true for Glossiness (so we invert to Roughness later)
-            if (EndsWithAny(n, GLOS)) return (MapType.Roughness, true, "Glossiness");
-            if (EndsWithAny(n, ROUG)) return (MapType.Roughness, false, "Roughness");
+            if (n.Contains("gloss") || n.Contains("smooth")) return (MapType.Roughness, true, "Glossiness");
+            if (n.Contains("rough")) return (MapType.Roughness, false, "Roughness");
 
-            // Bump family
-            if (EndsWithAny(n, NORM)) return (MapType.Bump, false, "Normal");
-            if (EndsWithAny(n, DISP)) return (MapType.Bump, false, "Displacement");
-            if (EndsWithAny(n, BUMP)) return (MapType.Bump, false, "Bump");
+            if (n.Contains("normal")) return (MapType.Bump, false, "Normal");
+            if (n.Contains("height") || n.Contains("disp") || n.Contains("parallax")) return (MapType.Bump, false, "Displacement");
+            if (n.Contains("bump")) return (MapType.Bump, false, "Bump");
 
-            // Other common slots
-            if (EndsWithAny(n, REFL)) return (MapType.Reflection, false, "Reflect");
-            if (EndsWithAny(n, METL)) return (MapType.Metalness, false, "Metalness");
+            (MapType t, int pr, string key) best = (MapType.Unknown, -1, "");
+            foreach (var (type, keys, prio) in Rules)
+                foreach (var k in keys)
+                    if (n.Contains(k) && prio > best.pr) best = (type, prio, k);
 
-            if (EndsWithAny(n, OPAC)) return (MapType.Refraction, false, "Opacity/Alpha");
-            if (EndsWithAny(n, DIFF)) return (MapType.Albedo, false, "Diffuse/Albedo");
-            if (EndsWithAny(n, AO)) return (MapType.Unknown, false, "Ambient Occlusion");
-            if (EndsWithAny(n, EMIS)) return (MapType.Illumination, false, "Emissive");
+            if (best.t != MapType.Unknown)
+                return best.t switch
+                {
+                    MapType.Albedo => (best.t, false, "Diffuse/Albedo"),
+                    MapType.Reflection => (best.t, false, best.key.Contains("gloss") ? "Glossiness" : "Specular/Reflection"),
+                    MapType.Metalness => (best.t, false, "Metalness"),
+                    MapType.Refraction => (best.t, false, "Opacity/Alpha"),
+                    MapType.Illumination => (best.t, false, "Emissive"),
+                    _ => (best.t, false, "Detected")
+                };
 
             return (MapType.Unknown, false, "Unknown");
         }

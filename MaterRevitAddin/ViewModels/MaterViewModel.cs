@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -8,10 +9,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using System.Windows.Input;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Mater2026.Models;
 using Mater2026.Services;
+using Mater2026.Handlers;
 using WpfApp = System.Windows.Application;
 using WpfMessageBox = System.Windows.MessageBox;
 
@@ -23,6 +26,48 @@ namespace Mater2026.ViewModels
         public ObservableCollection<FolderItem> GridFolders { get; } = [];
         public ObservableCollection<MaterialListItem> ProjectMaterials { get; } = [];
         public ObservableCollection<MapSlot> MapTypes { get; } = [];
+
+        // visibilité du bouton Remplacer
+        public bool HasSelectedMaterial => SelectedMaterial != null;
+
+        // commande de toggle depuis la liste
+        public RelayCommand<MaterialListItem> ToggleSelectMaterialCmd { get; }
+
+        // handler + external event pour sélectionner tous les objets par apparence
+        private readonly SelectByAppearanceHandler _selectByAppearanceHandler;
+        private readonly ExternalEvent _selectByAppearanceEvent;
+
+        private void ToggleSelectMaterial(MaterialListItem? item)
+        {
+            // 2e clic sur le même item => désélection + clear Revit
+            if (item != null && SelectedMaterial?.Id == item.Id)
+            {
+                SelectedMaterial = null;
+                OnPropertyChanged(nameof(HasSelectedMaterial));
+
+                _selectByAppearanceHandler.ClearSelection = true;
+                _selectByAppearanceEvent.Raise();
+                _selectByAppearanceHandler.ClearSelection = false;
+
+                AssignCommand.RaiseCanExecuteChanged();
+                CreateCommand.RaiseCanExecuteChanged();
+                ReplaceCommand.RaiseCanExecuteChanged();
+                return;
+            }
+
+            // Nouveau choix
+            SelectedMaterial = item;
+            OnPropertyChanged(nameof(HasSelectedMaterial));
+
+            // Pas de fetch de paramètres pour la colonne droite
+            _selectByAppearanceEvent.Raise();
+
+            AssignCommand.RaiseCanExecuteChanged();
+            CreateCommand.RaiseCanExecuteChanged();
+            ReplaceCommand.RaiseCanExecuteChanged();
+        }
+
+
 
         // Parameters bucket
         public UiParameters Params { get; } = new();
@@ -88,6 +133,9 @@ namespace Mater2026.ViewModels
         void OnPropertyChanged([CallerMemberName] string? n = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
 
         // Restart (cancel + relaunch) the thumbnail pass safely
+        private Mater2026.ViewModels.MaterViewModel VM => (Mater2026.ViewModels.MaterViewModel)DataContext;
+        private void ReplaceBtn_Click(object s, RoutedEventArgs e) => VM.ReplaceCommand.Execute(null);
+
         public void RestartThumbJob(int size, bool overwrite)
         {
             var previousTask = _thumbTask;          // hold onto the old task
@@ -137,6 +185,12 @@ namespace Mater2026.ViewModels
             ReplaceCommand = new RelayCommand(() => _ = ReplaceSelectedMaterialAppearanceFromParams(), CanReplace);
             AssignCommand = new RelayCommand(StartAssignMode, () => SelectedMaterial != null || ProjectMaterials.Count > 0);
             PipetteCommand = new RelayCommand(StartPipetteOnce);
+
+            _selectByAppearanceHandler = new SelectByAppearanceHandler { VM = this };
+            _selectByAppearanceEvent = ExternalEvent.Create(_selectByAppearanceHandler);
+
+            ToggleSelectMaterialCmd = new RelayCommand<MaterialListItem>(ToggleSelectMaterial);
+
 
             Params.OnMaterialNameChanged += OnMaterialNameEdited;
         }
@@ -381,47 +435,6 @@ namespace Mater2026.ViewModels
             CreateCommand.RaiseCanExecuteChanged();
             ReplaceCommand.RaiseCanExecuteChanged();
 
-            if (SelectedMaterial == null) return;
-
-            var res = WpfMessageBox.Show(
-                $"Récupérer les paramètres depuis \"{SelectedMaterial.Name}\" ?",
-                "Paramètres matériau",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question,
-                MessageBoxResult.Yes);
-
-            if (res == MessageBoxResult.Yes)
-            {
-                var rb = RevitMaterialService.ReadUiFromAppearanceAndMaterial(_uidoc.Document, SelectedMaterial.Id);
-                if (!string.IsNullOrWhiteSpace(rb.FolderPath)) Params.FolderPath = rb.FolderPath;
-                if (rb.WidthCm > 0) Params.WidthCm = rb.WidthCm;
-                if (rb.HeightCm > 0) Params.HeightCm = rb.HeightCm;
-                Params.RotationDeg = rb.RotationDeg;
-                Params.TilesX = rb.TilesX;
-                Params.TilesY = rb.TilesY;
-                Params.Tint = rb.Tint;
-
-                MapTypes.Clear();
-                foreach (var t in new[] { MapType.Albedo, MapType.Roughness, MapType.Reflection, MapType.Bump, MapType.Refraction, MapType.Illumination })
-                {
-                    var slot = new MapSlot(t);
-                    if (rb.Maps.TryGetValue(t, out var mp) && mp.path != null)
-                    {
-                        slot.Assigned = new MapFile(mp.path, t);
-                        slot.Invert = mp.invert;
-                    }
-                    if (t == MapType.Albedo && rb.Tint.HasValue) slot.Tint = rb.Tint;
-                    else if (t == MapType.Bump && slot.Assigned != null)
-                    {
-                        var n = System.IO.Path.GetFileNameWithoutExtension(slot.Assigned.FullPath);
-                        if (n.Contains("normal", StringComparison.OrdinalIgnoreCase)) slot.Detail = "Normal";
-                        else if (n.Contains("height", StringComparison.OrdinalIgnoreCase) ||
-                                 n.Contains("depth", StringComparison.OrdinalIgnoreCase)) slot.Detail = "Height";
-                        else slot.Detail = "Bump";
-                    }
-                    MapTypes.Add(slot);
-                }
-            }
         }
 
         // === Assign (paint) mode ===

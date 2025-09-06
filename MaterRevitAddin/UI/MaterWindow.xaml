@@ -67,10 +67,27 @@
                 <TextBlock Text="Project Material List" FontWeight="Bold"/>
                 <!-- If ItemsSource = tuple: use DisplayMemberPath="Item2" SelectedValuePath="Item1" -->
                 <ListBox x:Name="MatList"
-                         DisplayMemberPath="Name"
-                         SelectedValuePath="Id"
-                         SelectionChanged="MatList_SelectionChanged"
-                         Height="400" BorderBrush="#FFFFBB00"/>
+                     ItemsSource="{Binding ProjectMaterials}"
+                     DisplayMemberPath="Name"
+                     SelectedValuePath="Id"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     Height="400" BorderBrush="#FFFFBB00">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="6" Margin="4" BorderBrush="#444" BorderThickness="1" CornerRadius="6">
+                                <Grid>
+                                    <TextBlock Text="{Binding Name}" />
+                                    <Button Command="{Binding DataContext.ToggleSelectMaterialCmd, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                  CommandParameter="{Binding}"
+                  Opacity="0" Background="Transparent" BorderThickness="0"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
                 <Button x:Name="PipetteBtn" Content="Pipette" Click="PipetteBtn_Click" Width="100"/>
                 <Button x:Name="AssignBtn" Content="Assigner" Click="AssignBtn_Click"
                         IsEnabled="False" Width="100"/>
@@ -94,8 +111,23 @@
                                   Click="ToggleGallery_Click" Visibility="Collapsed"/>
                 </StackPanel>
             </StackPanel>
+            
+            <ScrollViewer DockPanel.Dock="Top"
+              HorizontalScrollBarVisibility="Disabled"
+              VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="GridFoldersPanel"
+                ItemsSource="{Binding VM.GridFolders}"
+                ItemTemplate="{StaticResource FolderTileTemplate}"
+                PreviewMouseLeftButtonUp="GridFoldersPanel_PreviewMouseLeftButtonUp"
+                PreviewMouseRightButtonUp="GridFoldersPanel_PreviewMouseRightButtonUp" Height="628">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
 
-            <!-- Files overlay (top of grid) -->
             <Border x:Name="FilesOverlay"
                     DockPanel.Dock="Top"
                     Background="#D0151515"
@@ -129,22 +161,32 @@
 
             <TextBlock Text="Maps" Height="20"/>
             <!-- RIGHT COLUMN -->
-            <ItemsControl x:Name="MapTypesList" Grid.Column="2" Margin="5" HorizontalContentAlignment="Stretch">
+            <ItemsControl x:Name="MapTypesList" Grid.Column="2" Margin="5" Height="439">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,8" Padding="0,0,0,8" BorderBrush="#333" BorderThickness="0,0,0,1"
-                        AllowDrop="True" DragOver="MapSlot_DragOver" Drop="MapSlot_Drop"
-                        ContextMenuOpening="MapSlot_ContextMenuOpening">
+                        <Border Margin="0,0,0,8"
+              Padding="0,0,0,8"
+              BorderBrush="#333"
+              BorderThickness="0,0,0,1"
+              HorizontalAlignment="Stretch"
+              AllowDrop="True"
+              DragOver="MapSlot_DragOver"
+              Drop="MapSlot_Drop"
+              ContextMenuOpening="MapSlot_ContextMenuOpening">
                             <StackPanel>
-                                <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" Margin="0,0,0,6"/>
+                                <TextBlock Text="{Binding DisplayName}"
+                     FontWeight="Bold"
+                     Margin="0,0,0,6"/>
                                 <Border Height="100" Background="#111">
-                                    <Image Stretch="UniformToFill" Source="{Binding Assigned.FullPath}"/>
+                                    <Image Stretch="UniformToFill"
+                   Source="{Binding Assigned.FullPath}"/>
                                 </Border>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
             <Button x:Name="TintBtn" Content="Teinte" Width="190" Click="TintBtn_Click" Height="20" BorderBrush="Black" Background="White"/>
             <TextBlock Text="Nom (apparence)" Margin="0,6,0,0"/>
             <TextBox x:Name="MatNameBox" TextChanged="MatNameBox_TextChanged"
@@ -180,7 +222,12 @@
 
             <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
                 <Button x:Name="CreateBtn"  Content="Créer"     Width="90" Click="CreateBtn_Click"/>
-                <Button x:Name="ReplaceBtn" Content="Remplacer" Width="90" Margin="8,0,0,0" Click="ReplaceBtn_Click"/>
+                <Button x:Name="ReplaceBtn"
+        Content="Remplacer"
+        Width="90" Margin="8,0,0,0"
+        Click="ReplaceBtn_Click"
+        Visibility="{Binding HasSelectedMaterial, Converter={StaticResource Bool2Vis}}"/>
+
             </StackPanel>
         </StackPanel>
     </Grid>
