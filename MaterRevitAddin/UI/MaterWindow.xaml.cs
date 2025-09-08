@@ -742,13 +742,27 @@ namespace Mater2026.UI
 
         private void TintBtn_Click(object sender, RoutedEventArgs e)
         {
-            using var cd = new WinForms.ColorDialog();
-            if (cd.ShowDialog() == WinForms.DialogResult.OK)
+            try
             {
-                VM.Params.Tint = (cd.Color.R, cd.Color.G, cd.Color.B);
-                TintBtn.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(cd.Color.R, cd.Color.G, cd.Color.B));
+                var dlg = new ColorSelectionDialog();
+
+                // Seed with current tint (0–255)
+                var (r, g, b) = VM.Params.Tint ?? (255, 255, 255);
+                dlg.OriginalColor = new Autodesk.Revit.DB.Color((byte)r, (byte)g, (byte)b);
+
+                // Show Revit’s native dialog
+                var result = dlg.Show();
+                if (result == ItemSelectionDialogResult.Confirmed)
+                {
+                    var c = dlg.SelectedColor; // Autodesk.Revit.DB.Color
+                    VM.Params.Tint = (c.Red, c.Green, c.Blue);
+                }
+            }
+            catch (Exception ex)
+            {
+                Autodesk.Revit.UI.TaskDialog.Show("Tint", "Failed to open Revit color dialog:\n" + ex.Message);
             }
         }
+
     }
 }

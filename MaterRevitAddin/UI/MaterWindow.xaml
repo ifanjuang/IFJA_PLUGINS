@@ -10,15 +10,25 @@
 
         <!-- Folder tile -->
         <DataTemplate x:Key="FolderTileTemplate">
-            <Border Margin="6" Padding="6" BorderBrush="#555" BorderThickness="1" CornerRadius="8"
-                    ContextMenuOpening="FolderTile_ContextMenuOpening">
-                <StackPanel>
-                    <Border Background="#111" Width="160" Height="160" CornerRadius="6">
-                        <Image Stretch="UniformToFill" Source="{Binding ThumbPath}"/>
-                    </Border>
-                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                </StackPanel>
+            <Border Background="#111" Width="160" Height="160" CornerRadius="6">
+                <Grid>
+                    <Image Stretch="UniformToFill" Source="{Binding ThumbPath}"/>
+                    <TextBlock Text="No preview"
+               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ThumbPath}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </Border>
+
         </DataTemplate>
 
         <!-- File tile (overlay) -->
@@ -72,35 +82,19 @@
                 </TextBox>
 
                 <ListBox x:Name="MatList"
-                 ItemsSource="{Binding ProjectMaterials}"
-                 DisplayMemberPath="Name"
-                 SelectedValuePath="Id"
-                 ScrollViewer.CanContentScroll="True"
-                 VirtualizingPanel.IsVirtualizing="True"
-                 VirtualizingPanel.VirtualizationMode="Recycling"
-                 Height="400">
-
-                    <!-- Context menu per item -->
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="ContextMenu">
-                                <Setter.Value>
-                                    <ContextMenu>
-                                        <MenuItem Header="Retrieve parameters"
-                      Command="{Binding DataContext.RetrieveParamsCmd, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                      CommandParameter="{Binding}"/>
-                                    </ContextMenu>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-
-                    <!-- Click anywhere on the item to toggle selection -->
+                ItemsSource="{Binding ProjectMaterials}"
+                SelectedItem="{Binding SelectedMaterial}"
+                SelectedValuePath="Id"
+                ScrollViewer.CanContentScroll="True"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                Height="400">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Border Padding="6" Margin="4" BorderBrush="#444" BorderThickness="1" CornerRadius="6">
                                 <Grid>
                                     <TextBlock Text="{Binding Name}" />
+                                    <!-- Click-through button to toggle selection -->
                                     <Button Command="{Binding DataContext.ToggleSelectMaterialCmd, RelativeSource={RelativeSource AncestorType=ListBox}}"
                   CommandParameter="{Binding}"
                   Opacity="0" Background="Transparent" BorderThickness="0"/>
@@ -109,6 +103,7 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
 
 
                 <Button x:Name="PipetteBtn" Content="Pick" Click="PipetteBtn_Click" Width="100"/>
