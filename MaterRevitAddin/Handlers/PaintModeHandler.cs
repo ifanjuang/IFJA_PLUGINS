@@ -53,28 +53,26 @@ namespace Mater2026.Handlers
                         continue;
                     }
 
-                    using (var t = new Transaction(doc, ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) ? "Unpaint" : "Paint"))
+                    using var t = new Transaction(doc, ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) ? "Unpaint" : "Paint");
+                    t.Start();
+
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
                     {
-                        t.Start();
-
-                        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-                        {
-                            doc.RemovePaint(r.ElementId, face);
-                        }
-                        else
-                        {
-                            if (CurrentMaterialId == ElementId.InvalidElementId)
-                            {
-                                t.RollBack();
-                                TaskDialog.Show("Mater2026", "No material selected to paint.");
-                                continue;
-                            }
-                            doc.Paint(r.ElementId, face, CurrentMaterialId);
-                        }
-
-                        t.Commit();
-                        anyOp = true;
+                        doc.RemovePaint(r.ElementId, face);
                     }
+                    else
+                    {
+                        if (CurrentMaterialId == ElementId.InvalidElementId)
+                        {
+                            t.RollBack();
+                            Autodesk.Revit.UI.TaskDialog.Show("Mater2026", "No material selected to paint.");
+                            continue;
+                        }
+                        doc.Paint(r.ElementId, face, CurrentMaterialId);
+                    }
+
+                    t.Commit();
+                    anyOp = true;
                 }
             }
             catch (Autodesk.Revit.Exceptions.OperationCanceledException)
@@ -83,7 +81,7 @@ namespace Mater2026.Handlers
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Mater2026 – Paint", ex.Message);
+                Autodesk.Revit.UI.TaskDialog.Show("Mater2026 – Paint", ex.Message);
             }
             finally
             {

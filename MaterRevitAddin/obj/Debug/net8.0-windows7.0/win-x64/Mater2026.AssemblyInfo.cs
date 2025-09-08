@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Mater2026")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a263dbed24e4e666d823210757fee7493790c482")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d9446863ccfddbcdf6028641af2921c89d5b3602")]
 [assembly: System.Reflection.AssemblyProductAttribute("Mater2026")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Mater2026")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

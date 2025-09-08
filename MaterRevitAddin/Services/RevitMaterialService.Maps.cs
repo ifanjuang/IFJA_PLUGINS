@@ -28,26 +28,19 @@ namespace Mater2026.Services
             // ApplyUiToMaterial(doc, mat, maps, Units.CmToFt(widthCm), Units.CmToFt(heightCm), rotationDeg, tint);
         }
         // --- Regex tuiles : "tile_0_1", "tiles-2x3", "tile 1 0" ---
-        private static readonly Regex _tilesRx = new(@"tile?s?[-_ ]*(\d+)\D+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
 
         public static (int tx, int ty)? TryParseTiles(string name)
         {
-            var m = _tilesRx.Match(name ?? "");
+            var m = TilesRx().Match(name ?? "");
             if (!m.Success) return null;
             return (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value));
         }
 
+
         // --- Utils ---
         public static double CmToFeet(double cm) => cm / 30.48;
 
-        private static T? FindProp<T>(Asset asset, params string[] names) where T : AssetProperty
-        {
-            foreach (var n in names)
-            {
-                if (asset.FindByName(n) is T p) return p;
-            }
-            return null;
-        }
         private static Asset? FindSubAsset(Asset parent, params string[] names)
         {
             foreach (var n in names)
@@ -99,8 +92,7 @@ namespace Mater2026.Services
         {
             if (mat.AppearanceAssetId != ElementId.InvalidElementId)
             {
-                var src = doc.GetElement(mat.AppearanceAssetId) as AppearanceAssetElement;
-                if (src != null)
+                if (doc.GetElement(mat.AppearanceAssetId) is AppearanceAssetElement src)
                 {
                     using var t = new Transaction(doc, "Duplicate Appearance Asset");
                     t.Start();
@@ -134,7 +126,7 @@ namespace Mater2026.Services
                     try
                     {
                         var a = ae.GetRenderingAsset();
-                        if (a != null && a.FindByName("generic_diffuse") is AssetProperty) { pick = ae; break; }
+                        if (a != null && a.FindByName("generic_diffuse") is not null) { pick = ae; break; }
                     }
                     catch { }
                 }
@@ -168,22 +160,42 @@ namespace Mater2026.Services
             t.Start();
 
             using var scope = new AppearanceAssetEditScope(doc);
-            scope.Start(appId);
-            var editable = scope.GetRenderingAsset();
+            Asset editable = scope.Start(appId);
+
 
             // Diffuse
             ApplyTextureToSlot(editable,
-                slotTexNames: new[] { "generic_diffuse_tex", "Generic_Diffuse", "diffuse_tex", "common_Tint_color_texture" },
+                slotTexNames: ["generic_diffuse_tex", "Generic_Diffuse", "diffuse_tex", "common_Tint_color_texture"],
                 slotOnName: "generic_diffuse_on",
                 unifiedBitmapNodeName: "unifiedbitmap",
                 file: maps.TryGetValue(Models.MapType.Albedo, out var albedo) ? (albedo.path, false) : (null, false),
                 sxFeet: CmToFeet(widthCm), syFeet: CmToFeet(heightCm), rotDeg: rotationDeg);
+            if (tint.HasValue)
+            {
+                var slotTex = FindSubAsset(editable, "generic_diffuse_tex", "Generic_Diffuse", "diffuse_tex", "common_Tint_color_texture");
+                var ub = slotTex != null ? FindSubAsset(slotTex, "unifiedbitmap") : null;
 
+                if (ub != null)
+                {
+                    var pToggle = FindProp<AssetPropertyBoolean>(ub, "common_Tint_toggle", "UnifiedBitmap.Tint_enabled", "unifiedbitmap_Tint_toggle");
+                    var pColor = FindProp<AssetPropertyDoubleArray4d>(ub, "common_Tint_color", "UnifiedBitmap.Tint_color", "unifiedbitmap_Tint_color", "TintColor");
+
+                    if (pToggle != null && !pToggle.IsReadOnly) pToggle.Value = true;
+                    if (pColor != null && !pColor.IsReadOnly)
+                    {
+                        var (r, g, b) = tint.Value;
+                        double r01 = Math.Clamp(r / 255.0, 0, 1);
+                        double g01 = Math.Clamp(g / 255.0, 0, 1);
+                        double b01 = Math.Clamp(b / 255.0, 0, 1);
+                        pColor.SetValueAsDoubles([r01, g01, b01, 1.0]);
+                    }
+                }
+            }
             // Roughness / Gloss (invert si gloss)
             if (maps.TryGetValue(Models.MapType.Roughness, out var rough))
             {
                 ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_glossiness_tex", "generic_roughness_tex", "generic_reflect_glossiness_tex" },
+                    slotTexNames: ["generic_glossiness_tex", "generic_roughness_tex", "generic_reflect_glossiness_tex"],
                     slotOnName: "generic_glossiness_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (rough.path, rough.invert),
@@ -194,7 +206,7 @@ namespace Mater2026.Services
             if (maps.TryGetValue(Models.MapType.Reflection, out var spec))
             {
                 ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_reflectivity_tex", "generic_specular_tex", "generic_reflection_tex" },
+                    slotTexNames: ["generic_reflectivity_tex", "generic_specular_tex", "generic_reflection_tex"],
                     slotOnName: "generic_reflectivity_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (spec.path, false),
@@ -205,7 +217,7 @@ namespace Mater2026.Services
             if (maps.TryGetValue(Models.MapType.Metalness, out var metal))
             {
                 var ok = ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_metalness_tex", "pbr_metalness_tex" },
+                    slotTexNames: ["generic_metalness_tex", "pbr_metalness_tex"],
                     slotOnName: "generic_metalness_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (metal.path, false),
@@ -215,7 +227,7 @@ namespace Mater2026.Services
                 if (!ok && !string.IsNullOrWhiteSpace(metal.path))
                 {
                     ApplyTextureToSlot(editable,
-                        slotTexNames: new[] { "generic_reflectivity_tex" },
+                        slotTexNames: ["generic_reflectivity_tex"],
                         slotOnName: "generic_reflectivity_on",
                         unifiedBitmapNodeName: "unifiedbitmap",
                         file: (metal.path, false),
@@ -227,7 +239,7 @@ namespace Mater2026.Services
             if (maps.TryGetValue(Models.MapType.Bump, out var bump))
             {
                 ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_bump_map", "generic_bump_tex", "generic_normalmap_tex", "generic_normaltex" },
+                    slotTexNames: ["generic_bump_map", "generic_bump_tex", "generic_normalmap_tex", "generic_normaltex"],
                     slotOnName: "generic_bump_map_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (bump.path, false),
@@ -241,7 +253,7 @@ namespace Mater2026.Services
             if (maps.TryGetValue(Models.MapType.Refraction, out var opac))
             {
                 ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_transparency_tex", "generic_opacity_tex", "generic_cutout_tex" },
+                    slotTexNames: ["generic_transparency_tex", "generic_opacity_tex", "generic_cutout_tex"],
                     slotOnName: "generic_transparency_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (opac.path, false),
@@ -252,7 +264,7 @@ namespace Mater2026.Services
             if (maps.TryGetValue(Models.MapType.Illumination, out var emi))
             {
                 ApplyTextureToSlot(editable,
-                    slotTexNames: new[] { "generic_emission_tex", "generic_selfillum_tex", "generic_emissive_tex" },
+                    slotTexNames: ["generic_emission_tex", "generic_selfillum_tex", "generic_emissive_tex"],
                     slotOnName: "generic_emission_on",
                     unifiedBitmapNodeName: "unifiedbitmap",
                     file: (emi.path, false),
@@ -278,17 +290,20 @@ namespace Mater2026.Services
                 slotTex = FindSubAsset(editable, n);
                 if (slotTex != null) break;
             }
-            if (slotTex == null) return returnWhetherApplied ? false : false;
+            if (slotTex == null) return returnWhetherApplied && false;
 
             EnableTexture(editable, slotOnName);
 
             var ub = FindSubAsset(slotTex, unifiedBitmapNodeName);
-            if (ub == null) return returnWhetherApplied ? false : false;
+            if (ub == null) return returnWhetherApplied && false;
 
             if (!string.IsNullOrWhiteSpace(file.path))
                 SetUnifiedBitmap(ub, file.path, file.invert, sxFeet, syFeet, rotDeg);
 
             return true;
         }
+
+        [GeneratedRegex(@"tile?s?[-_ ]*(\d+)\D+(\d+)", RegexOptions.IgnoreCase)]
+        private static partial Regex TilesRx();
     }
 }

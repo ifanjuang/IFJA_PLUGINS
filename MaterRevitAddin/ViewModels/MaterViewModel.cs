@@ -29,7 +29,7 @@ namespace Mater2026.ViewModels
         public ObservableCollection<MapSlot> MapTypes { get; } = [];
 
         // Filtered view for the materials list
-        private ICollectionView? _materialsView;
+        private readonly ICollectionView? _materialsView;
         private string _materialFilter = "";
         public string MaterialFilter
         {
@@ -263,6 +263,35 @@ namespace Mater2026.ViewModels
             IsThumbWorking = false;
         }
 
+        // === Generate missing thumbs on direct children ===
+        public Task GenerateMissingThumbsForDirectChildrenAsync(string root, int size)
+            => GenerateMissingThumbsForDirectChildrenAsync(root, [size]);
+
+        public async Task GenerateMissingThumbsForDirectChildrenAsync(string root, int[] sizes)
+        {
+            if (string.IsNullOrWhiteSpace(root)) return;
+
+            // avoid fighting the active decode
+            await WhenThumbsIdleAsync();
+
+            await Task.Run(() =>
+            {
+                foreach (var sub in System.IO.Directory.EnumerateDirectories(root))
+                    foreach (var s in sizes)
+                    {
+                        var name = System.IO.Path.GetFileName(sub);
+                        var target = System.IO.Path.Combine(sub, $"{name}_{s}.jpg");
+                        if (!System.IO.File.Exists(target))
+                            ThumbnailService.GenerateThumb(sub, s, overwrite: false);
+                    }
+            });
+
+            // refresh grid and re-run thumb job for current size (no overwrite)
+            SelectTreeNode(root);
+            RestartThumbJob(ThumbSize, overwrite: false);
+        }
+
+
         // -------- Create / Replace --------
         bool Ready()
         {
@@ -275,9 +304,8 @@ namespace Mater2026.ViewModels
         public async Task CreateMaterialAndAppearanceFromParams() { await Task.Yield(); CreateInternal(); }
         public async Task ReplaceSelectedMaterialAppearanceFromParams() { await Task.Yield(); ReplaceInternal(); }
 
-        private IDictionary<MapType, (string? path, bool invert, string? detail)> BuildUiMapsFromSlots()
-            => MapTypes.Where(s => s.Assigned != null)
-                       .ToDictionary(s => s.Type, s => (path: (string?)s.Assigned!.FullPath, s.Invert, s.Detail));
+        private IDictionary<MapType, (string? path, bool invert, string? detail)> BuildUiMapsFromSlots => MapTypes.Where(s => s.Assigned != null)
+                               .ToDictionary(s => s.Type, s => (path: (string?)s.Assigned!.FullPath, s.Invert, s.Detail));
 
         private void ApplyDefaultsFromFolder(string folder)
         {
@@ -307,7 +335,7 @@ namespace Mater2026.ViewModels
 
             var mat = RevitMaterialService.CreateMaterial(doc, name, app);
 
-            var maps = BuildUiMapsFromSlots();
+            var maps = BuildUiMapsFromSlots;
             RevitMaterialService.ApplyMapsToMaterial(doc, mat, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
 
             RefreshMaterials();
@@ -326,7 +354,7 @@ namespace Mater2026.ViewModels
             var (mat, _) = RevitMaterialService.GetMaterialAndAppearance(doc, SelectedMaterial.Id);
             if (mat == null) return;
 
-            var maps = BuildUiMapsFromSlots();
+            var maps = BuildUiMapsFromSlots;
             RevitMaterialService.ApplyMapsToMaterial(doc, mat, maps, Params.WidthCm, Params.HeightCm, Params.RotationDeg, Params.Tint);
 
             WpfMessageBox.Show("Material updated.", "Replace", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -468,7 +496,8 @@ namespace Mater2026.ViewModels
         public Action? AppShow { get; set; }
 
         // Basic logging shims (avoid hard dependency on a logger)
-        public void LogInfo(string msg) => System.Diagnostics.Debug.WriteLine("[INFO] " + msg);
-        public void LogError(Exception ex) => System.Diagnostics.Debug.WriteLine("[ERR] " + ex);
+        public static void LogInfo(string msg) => System.Diagnostics.Debug.WriteLine("[INFO] " + msg);
+        public static void LogError(Exception ex) => System.Diagnostics.Debug.WriteLine("[ERR] " + ex);
+
     }
 }

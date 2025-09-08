@@ -18,8 +18,7 @@ namespace Mater2026.Handlers
 
             try
             {
-                var mat = doc.GetElement(sel.Id) as Material;
-                if (mat == null) return;
+                if (doc.GetElement(sel.Id) is not Material mat) return;
 
                 // Assurer une apparence "générique-like" dupliquée
                 RevitMaterialService.EnsureGenericAppearance(doc, mat);
@@ -38,12 +37,12 @@ namespace Mater2026.Handlers
                     VM.Params.WidthCm, VM.Params.HeightCm,
                     VM.Params.RotationDeg, VM.Params.Tint);
 
-                VM.LogInfo($"Apparence remplacée pour « {mat.Name} ».");
+                MaterViewModel.LogInfo($"Apparence remplacée pour « {mat.Name} ».");
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Mater2026 – Remplacer l’apparence", ex.Message);
-                VM?.LogError(ex);
+                Autodesk.Revit.UI.TaskDialog.Show("Mater2026 – Remplacer l’apparence", ex.Message);
+                MaterViewModel.LogError(ex);
             }
         }
 

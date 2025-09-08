@@ -1,17 +1,16 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+// DO NOT import System.Windows.Forms or System.Drawing here
 using Autodesk.Revit.DB;
+using DB = Autodesk.Revit.DB;
 
 namespace Mater2026.Services
 {
-    /// <summary>
-    /// Temporary view-level highlighting of elements (cleared on next selection/deselect).
-    /// </summary>
     public static class TemporaryHighlightService
     {
-        private static readonly Dictionary<ElementId, IList<ElementId>> _byView = new();
+        private static readonly Dictionary<ElementId, IList<ElementId>> _byView = [];
 
-        public static void Apply(View view, IList<ElementId> ids)
+        public static void Apply(DB.View view, IList<ElementId> ids)
         {
             if (view == null || ids == null || ids.Count == 0) return;
 
@@ -19,14 +18,15 @@ namespace Mater2026.Services
 
             var ogs = new OverrideGraphicSettings();
 
-            var c = new Color(80, 180, 255);
+            var c = new DB.Color(80, 180, 255);
             ogs.SetProjectionLineColor(c);
             ogs.SetSurfaceBackgroundPatternColor(c);
             ogs.SetSurfaceForegroundPatternColor(c);
 
             var solid = new FilteredElementCollector(view.Document)
                         .OfClass(typeof(FillPatternElement))
-                        .FirstOrDefault() as FillPatternElement;
+                        .Cast<FillPatternElement>()
+                        .FirstOrDefault();
             if (solid != null)
             {
                 ogs.SetSurfaceForegroundPatternId(solid.Id);
@@ -36,10 +36,10 @@ namespace Mater2026.Services
             foreach (var id in ids)
                 view.SetElementOverrides(id, ogs);
 
-            _byView[view.Id] = new List<ElementId>(ids);
+            _byView[view.Id] = [.. ids];
         }
 
-        public static void Clear(View view)
+        public static void Clear(DB.View view)
         {
             if (view == null) return;
             if (!_byView.TryGetValue(view.Id, out var last)) return;

@@ -23,7 +23,7 @@ namespace Mater2026.Handlers
 
             if (ClearSelection)
             {
-                uidoc.Selection.SetElementIds(new List<ElementId>());
+                uidoc.Selection.SetElementIds([]);
                 TemporaryHighlightService.Clear(uidoc.ActiveView);
                 return;
             }
@@ -31,7 +31,7 @@ namespace Mater2026.Handlers
             var mat = VM?.SelectedMaterial;
             if (mat == null)
             {
-                uidoc.Selection.SetElementIds(new List<ElementId>());
+                uidoc.Selection.SetElementIds([]);
                 TemporaryHighlightService.Clear(uidoc.ActiveView);
                 return;
             }
@@ -58,15 +58,30 @@ namespace Mater2026.Handlers
             {
                 try
                 {
-                    var mids = e.GetMaterialIds(includePainted: true);
-                    if (mids != null && mids.Contains(mat.Id)) ids.Add(e.Id);
+                    bool has = false;
+
+                    var baseIds = e.GetMaterialIds(false);     // matériaux "de base"
+                    if (baseIds != null && baseIds.Contains(mat.Id))
+                        has = true;
+                    else
+                    {
+                        var paintedIds = e.GetMaterialIds(true); // matériaux peints
+                        if (paintedIds != null && paintedIds.Contains(mat.Id))
+                            has = true;
+                    }
+
+                    if (has) ids.Add(e.Id);
                 }
-                catch { /* some elements don't expose GetMaterialIds */ }
+                catch
+                {
+                    // certains éléments ne supportent pas GetMaterialIds
+                }
             }
+
 
             uidoc.Selection.SetElementIds(ids);
             TemporaryHighlightService.Apply(uidoc.ActiveView, ids);
-            VM?.LogInfo($"Selection: {ids.Count} element(s) use \"{mat.Name}\".");
+            MaterViewModel.LogInfo($"Selection: {ids.Count} element(s) use \"{mat.Name}\".");
         }
 
         public string GetName() => "Mater2026.SelectByAppearance";
