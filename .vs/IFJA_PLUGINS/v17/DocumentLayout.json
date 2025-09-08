@@ -3,8 +3,40 @@
   "WorkspaceRootPath": "C:\\GITHUB\\IFJA_PLUGINS\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\handlers\\replaceappearancehandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\handlers\\replaceappearancehandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\viewmodels\\materviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\viewmodels\\materviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\ui\\materwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
       "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\ui\\materwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\mater2026.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\mater2026.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\ui\\materwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\ui\\materwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\services\\mapdetect.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\services\\mapdetect.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\services\\revitmaterialservice.maps.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\services\\revitmaterialservice.maps.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\handlers\\selectbyappearancehandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\handlers\\selectbyappearancehandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|c:\\github\\ifja_plugins\\materrevitaddin\\models\\materiallistitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{576643B3-3F4E-A43C-9D14-64A13A0F37CC}|MaterRevitAddin\\Mater2026.csproj|solutionrelative:materrevitaddin\\models\\materiallistitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,7 +46,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 6,
           "Children": [
             {
               "$type": "Bookmark",
@@ -33,20 +65,116 @@
               "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "MapDetect.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Services\\MapDetect.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Services\\MapDetect.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Services\\MapDetect.cs",
+              "RelativeToolTip": "MaterRevitAddin\\Services\\MapDetect.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAowE0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T15:19:34.418Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "RevitMaterialService.Maps.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Services\\RevitMaterialService.Maps.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Services\\RevitMaterialService.Maps.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Services\\RevitMaterialService.Maps.cs",
+              "RelativeToolTip": "MaterRevitAddin\\Services\\RevitMaterialService.Maps.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABIAAAAWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T15:18:41.914Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "ReplaceAppearanceHandler.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Handlers\\ReplaceAppearanceHandler.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Handlers\\ReplaceAppearanceHandler.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Handlers\\ReplaceAppearanceHandler.cs",
+              "RelativeToolTip": "MaterRevitAddin\\Handlers\\ReplaceAppearanceHandler.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T15:17:56.547Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "MaterWindow.xaml.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\UI\\MaterWindow.xaml.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\UI\\MaterWindow.xaml.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\UI\\MaterWindow.xaml.cs",
+              "RelativeToolTip": "MaterRevitAddin\\UI\\MaterWindow.xaml.cs",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAAACYAAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T14:42:48.431Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Mater2026.csproj",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Mater2026.csproj",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Mater2026.csproj",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Mater2026.csproj",
+              "RelativeToolTip": "MaterRevitAddin\\Mater2026.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-09-06T14:41:03.295Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MaterViewModel.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\ViewModels\\MaterViewModel.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\ViewModels\\MaterViewModel.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\ViewModels\\MaterViewModel.cs",
+              "RelativeToolTip": "MaterRevitAddin\\ViewModels\\MaterViewModel.cs",
+              "ViewState": "AgIAAGoAAAAAAAAAAAAkwIkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T14:38:26.649Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "MaterWindow.xaml",
               "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\UI\\MaterWindow.xaml",
               "RelativeDocumentMoniker": "MaterRevitAddin\\UI\\MaterWindow.xaml",
               "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\UI\\MaterWindow.xaml",
               "RelativeToolTip": "MaterRevitAddin\\UI\\MaterWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-09-01T22:57:03.525Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-01T22:57:03.525Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "SelectByAppearanceHandler.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Handlers\\SelectByAppearanceHandler.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Handlers\\SelectByAppearanceHandler.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Handlers\\SelectByAppearanceHandler.cs",
+              "RelativeToolTip": "MaterRevitAddin\\Handlers\\SelectByAppearanceHandler.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAADMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T15:17:46.163Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "MaterialListItem.cs",
+              "DocumentMoniker": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Models\\MaterialListItem.cs",
+              "RelativeDocumentMoniker": "MaterRevitAddin\\Models\\MaterialListItem.cs",
+              "ToolTip": "C:\\GITHUB\\IFJA_PLUGINS\\MaterRevitAddin\\Models\\MaterialListItem.cs",
+              "RelativeToolTip": "MaterRevitAddin\\Models\\MaterialListItem.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-06T14:35:18.065Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
             }
           ]
         }

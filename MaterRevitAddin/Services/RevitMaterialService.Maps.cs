@@ -6,11 +6,27 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Visual;
+using Mater2026.Models;
 
 namespace Mater2026.Services
 {
     public static partial class RevitMaterialService
     {
+
+        public static void ApplyMapsToMaterial(
+        Document doc,
+        Material mat,
+        IDictionary<MapType, (string? path, bool invert, string? detail)> maps,
+        double widthCm, double heightCm, double rotationDeg,
+        (int r, int g, int b)? tint)
+        {
+            EnsureGenericAppearance(doc, mat);
+
+            // If ApplyUiToMaterial expects cm (your version does), keep as-is.
+            // If it expects feet, convert here using Units.CmToFt.
+            ApplyUiToMaterial(doc, mat, maps, widthCm, heightCm, rotationDeg, tint);
+            // ApplyUiToMaterial(doc, mat, maps, Units.CmToFt(widthCm), Units.CmToFt(heightCm), rotationDeg, tint);
+        }
         // --- Regex tuiles : "tile_0_1", "tiles-2x3", "tile 1 0" ---
         private static readonly Regex _tilesRx = new(@"tile?s?[-_ ]*(\d+)\D+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 

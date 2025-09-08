@@ -39,7 +39,7 @@ namespace Mater2026.UI
             VM = new MaterViewModel(uiapp);
             VM.AppHide = () => Dispatcher.Invoke(Hide);
             VM.AppShow = () => Dispatcher.Invoke(Show);
-            DataContext = new { VM };
+            DataContext = VM;
 
             // Bind lists
             MatList.ItemsSource = VM.ProjectMaterials;  // XAML: DisplayMemberPath="Item2", SelectedValuePath="Item1"
