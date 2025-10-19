@@ -1,0 +1,233 @@
+﻿<Window x:Class="Mater2026.MaterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Mater2026"
+        Title="Mater 2026"
+        Width="1400" Height="900"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Bool2Vis"/>
+        <local:PathToImageConverter x:Key="PathToImageConverter"/>
+        <Style TargetType="Button">
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="200"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- LEFT PANEL -->
+
+        <!-- CENTER PANEL : TREE + GRID -->
+        <DockPanel Grid.Column="0" Margin="5">
+
+            <StackPanel Orientation="Vertical" Margin="0,0,0,5">
+                <StackPanel Orientation="Horizontal" Height="20">
+                    <Button Content="📂" Command="{Binding BrowseRootCmd}" Width="25" VerticalContentAlignment="Top" Margin="0,0,0,0" BorderBrush="Black" Padding="4,0,4,0" BorderThickness="0,0,0,0" Background="White" />
+                    <TextBlock Text="{Binding RootFolder}" TextTrimming="CharacterEllipsis" Width="165" />
+                </StackPanel>
+                <!-- TreeView -->
+                <TreeView x:Name="FolderTree"
+                    ItemsSource="{Binding TreeRoot}"
+                    SelectedItemChanged="Tree_SelectedItemChanged"
+                    IsEnabled="True" BorderThickness="0,2,0,0" BorderBrush="Black" Background="{x:Null}" MinHeight="200">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <EventSetter Event="Expanded" Handler="FolderTreeItem_Expanded"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <TextBlock Text="{Binding Name}" />
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </StackPanel>
+        </DockPanel>
+
+        <DockPanel Grid.Column="1" Margin="5">
+            <StackPanel Orientation="Vertical" VerticalAlignment="Top">
+                <StackPanel Orientation="Horizontal">
+                    <!-- Breadcrumb -->
+                    <StackPanel Orientation="Horizontal" Width="430">
+                        <TextBlock Text="📂 " VerticalAlignment="Center"/>
+                        <!-- Fil d’Ariane (navigation dossier) -->
+                        <ItemsControl ItemsSource="{Binding Breadcrumb}" MinWidth="147">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Path=., Mode=OneWay}"
+                                    Tag="{Binding Path=.}"
+                                    Click="Breadcrumb_Click"
+                                    Margin="2"
+                                    Padding="6,2"
+                                    FontSize="12"
+                                    Background="#EEE"
+                                    BorderThickness="0"
+                                    Cursor="Hand"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Width="435">
+                        <TextBlock Text="Thumbnail size:" VerticalAlignment="Top"/>
+                        <ComboBox ItemsSource="{Binding ThumbSizes}"
+                            SelectedItem="{Binding ThumbSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="5,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="91" BorderThickness="0,0,0,0" VerticalContentAlignment="Center" Height="20" BorderBrush="#00000000"/>
+                        <Button Content="Generate" Command="{Binding GenerateThumbsCmd}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,0" Height="20"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Orientation="Vertical" Visibility="{Binding IsGenerating, Converter={StaticResource Bool2Vis}}" MinHeight="400">
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" BorderThickness="0,2,0,0" Height="4" BorderBrush="Black" Background="{x:Null}" Foreground="Black"/>
+                    <TextBlock Text="{Binding ProgressText}" FontSize="11" HorizontalAlignment="Center" />
+                </StackPanel>
+                
+
+                <!-- Thumbnails Grid -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding GridFolders}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4" Cursor="Hand" MouseLeftButtonUp="Thumb_Click">
+                                    <Border BorderBrush="#444" BorderThickness="1"
+                            Width="{Binding DataContext.ThumbSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Height="{Binding DataContext.ThumbSize, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <Image Stretch="UniformToFill"
+       Source="{Binding ThumbPath, Converter={StaticResource PathToImageConverter}}"
+       SnapsToDevicePixels="True"/>
+
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                </ScrollViewer>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- RIGHT PANEL : PARAMETERS -->
+        <StackPanel Grid.Column="2" Margin="5">
+            <StackPanel DockPanel.Dock="Top">
+                <TextBlock Text="Project Materials" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBox x:Name="FilterBox"
+           Text="{Binding MaterialFilter, UpdateSourceTrigger=PropertyChanged}"
+           Padding="25,2,20,0"
+           VerticalContentAlignment="Center" Height="20" BorderBrush="Black"/>
+                <TextBlock Text="🔍" VerticalAlignment="Center" Height="20" Margin="0,-20,0,0"/>
+                <CheckBox Content="Unused"
+IsChecked="{Binding ShowUnused}" FlowDirection="RightToLeft" Height="20" Margin="0,-20,0,0" VerticalContentAlignment="Center" BorderThickness="0,0,1,0" BorderBrush="Black" Padding="5,-1,0,0" Width="60" HorizontalAlignment="Right" />
+                <Button Content="✖"
+          Width="18" Height="18"
+          FontSize="11"
+          BorderThickness="0"
+          Background="Transparent"
+          Foreground="Gray"
+          VerticalAlignment="Center"
+          HorizontalAlignment="Right"
+          Visibility="{Binding Text.Length, ElementName=FilterBox, Converter={StaticResource Bool2Vis}}"
+          Command="{Binding ClearFilterCmd}"/>
+
+                <ListBox ItemsSource="{Binding MaterialsView}"
+                   SelectedItem="{Binding SelectedMaterial}"
+                   Height="400" BorderBrush="Black" BorderThickness="1,0,1,1">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="Normal"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsUsed}" Value="True">
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Pick" Command="{Binding PickCmd}" Margin="0,0,0,0" Height="20" Width="95" BorderThickness="1,0,1,1" Background="White" Padding="4,0,4,2" BorderBrush="Black" VerticalAlignment="Top"/>
+                    <Button Content="Assign" 
+                          Command="{Binding AssignMaterialCmd}" Height="20" Width="95" Margin="0,0,0,0" BorderThickness="0,0,0,0" Padding="0,0,0,0" Background="Black" Foreground="White" FontWeight="Bold"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="Appearance name" Margin="0,15,0,0" FontWeight="Bold" />
+            <TextBox Text="{Binding Ui.MaterialName, UpdateSourceTrigger=PropertyChanged}" BorderBrush="Black" Height="20"/>
+            <TextBlock Text="{Binding ValidationMessage}" Foreground="Red" FontSize="11" TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="10"><Run Text="Width"/><Run Text=" "/><Run Text="(cm)"/><Run Text=" "/><Run Text=" "/><Run Text=" "/><Run Language="fr-fr" Text=" "/><Run Text="Height (cm) "/><Run Text="      Rotation(°)"/></TextBlock>
+            <StackPanel Orientation="Horizontal" Height="15">
+                <TextBox Text="{Binding Ui.WidthCm}" Width="60" BorderBrush="Black"/>
+                <TextBox Text="{Binding Ui.HeightCm}" Width="60" BorderThickness="0,1,1,1" BorderBrush="Black"/>
+                <TextBox Text="{Binding Ui.RotationDeg}" Width="60" BorderBrush="Black" Margin="10,0,0,0"/>
+            </StackPanel>
+
+            <TextBlock VerticalAlignment="Center" Margin="0,15,0,0" FontSize="10"><Run Text="Tiles X"/><Run Text=" "/><Run Language="fr-fr" Text="          "/><Run Text="Tiles"/><Run Text=" "/><Run Text="Y "/><Run Language="fr-fr" Text="                 C"/><Run Text="enter tiles"/></TextBlock>
+
+            <StackPanel Orientation="Horizontal" Height="15">
+                <TextBox Text="{Binding Ui.TilesX}" Width="60" BorderBrush="Black"/>
+                <TextBox Text="{Binding Ui.TilesY}" Width="60" BorderBrush="Black" BorderThickness="0,1,1,1"/>
+                <CheckBox Content="" IsChecked="{Binding Ui.TileOffset}" BorderThickness="1,1,1,1" BorderBrush="Black" FlowDirection="RightToLeft" Width="70"/>
+            </StackPanel>
+
+
+
+
+            <!-- Tint -->
+            <Button Content="Tint" Height="20" Margin="0,15,0,0"
+                    Click="Tint_Click"
+                    Background="{Binding Ui.TintBrush}"/>
+
+            <!-- Map slots -->
+            <TextBlock Text="Maps" FontWeight="Bold" Margin="0,10,0,0"/>
+            
+            <ItemsControl ItemsSource="{Binding MapSlots}" Height="100" BorderBrush="Black" BorderThickness="1,1,1,1">
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="2,2,0,2" Height="15">
+                            <ComboBox ItemsSource="{Binding DepthOptions}" 
+                              SelectedItem="{Binding SelectedDepthOption}"
+                              Visibility="{Binding IsDepthSlot, Converter={StaticResource Bool2Vis}}"
+                              Width="100"/>
+                            <Button Content="{Binding DisplayName}"
+                                    Background="{Binding ButtonBrush}"
+                                    AllowDrop="True"
+                                    DragOver="MapSlot_DragOver"
+                                    Drop="MapSlot_Drop"
+                                    ToolTip="{Binding Assigned.FullPath}"
+                                    Click="MapSlot_Browse_Click"
+                                    Width="50" Margin="0,0,0,0" BorderThickness="0,0,0,0" BorderBrush="{x:Null}" Padding="1,1,1,1"
+                                    />
+                            <TextBlock Text="{Binding Assigned.FullPath}" Width="140" TextTrimming="CharacterEllipsis"/>
+                            <!-- Dropdown bump/normal/depth -->
+                            <TextBox Text="{Binding Detail}" Width="60" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Action button -->
+            <Button Content="{Binding ActionButtonLabel}" Margin="0,10,0,0"
+                    Command="{Binding ActionButtonCmd}"
+                    IsEnabled="{Binding IsValid}" Height="20" BorderBrush="Black" Background="Black" Foreground="White" FontWeight="Bold"/>
+        </StackPanel>
+    </Grid>
+</Window>

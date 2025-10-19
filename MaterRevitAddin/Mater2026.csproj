@@ -1,16 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>Library</OutputType>
-		<TargetFramework>net8.0-windows7.0</TargetFramework>
+		<TargetFramework>net8.0-windows</TargetFramework>
 		<UseWPF>true</UseWPF>
 		<UseWindowsForms>true</UseWindowsForms>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>latest</LangVersion>
-		<!-- IMPORTANT: align with Revit (AMD64) -->
+
+		<!-- IMPORTANT: align with Revit (AMD64 only) -->
 		<PlatformTarget>x64</PlatformTarget>
 		<Prefer32Bit>false</Prefer32Bit>
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
 		<RevitInstall Condition="'$(REVIT_2026)' != ''">$(REVIT_2026)</RevitInstall>
 		<RevitInstall Condition="'$(RevitInstall)' == ''">$(ProgramW6432)\Autodesk\Revit 2026</RevitInstall>
 
@@ -18,6 +20,7 @@
 		<RootNamespace>Mater2026</RootNamespace>
 	</PropertyGroup>
 
+	<!-- Références Revit -->
 	<ItemGroup>
 		<Reference Include="RevitAPI">
 			<HintPath>$(RevitInstall)\RevitAPI.dll</HintPath>
@@ -29,38 +32,44 @@
 		</Reference>
 	</ItemGroup>
 
-	<!-- Copy manifest + icons to output to be deployed -->
+	<!-- Manifeste et ressources -->
 	<ItemGroup>
 		<Content Include="Mater2026.addin">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
-		<Content Include="icon16.png">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
-		<Content Include="icon32.png">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
 	</ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\icon16.png" />
+		<EmbeddedResource Include="Resources\icon32.png" />
+	</ItemGroup>
+	
 
+	<!-- Déploiement auto dans ProgramData -->
+	<!-- Déploiement automatique vers Revit 2026 -->
 	<Target Name="DeployToRevitAddins" AfterTargets="Build">
 		<PropertyGroup>
 			<RevitAddinsDir>C:\ProgramData\Autodesk\Revit\Addins\2026</RevitAddinsDir>
 			<RevitMaterDir>$(RevitAddinsDir)\Mater2026</RevitMaterDir>
 		</PropertyGroup>
 
-		<MakeDir Directories="$(RevitAddinsDir)" />
+		<!-- Crée le dossier -->
 		<MakeDir Directories="$(RevitMaterDir)" />
 
+		<!-- Copie la DLL et ressources -->
 		<ItemGroup>
 			<DeployFiles Include="$(TargetDir)Mater2026.dll" />
-			<DeployFiles Include="$(TargetDir)Mater2026.pdb" Condition="Exists('$(TargetDir)Mater2026.pdb')" />
 			<DeployFiles Include="$(TargetDir)icon16.png" Condition="Exists('$(TargetDir)icon16.png')" />
 			<DeployFiles Include="$(TargetDir)icon32.png" Condition="Exists('$(TargetDir)icon32.png')" />
 		</ItemGroup>
 
-		<Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(RevitMaterDir)" SkipUnchangedFiles="true" />
-		<Copy SourceFiles="$(TargetDir)Mater2026.addin" DestinationFolder="$(RevitAddinsDir)" SkipUnchangedFiles="true" />
+		<!-- Copie tout -->
+		<Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(RevitMaterDir)" />
 
-		<Error Condition="!Exists('$(RevitMaterDir)\Mater2026.dll')" Text="Mater2026.dll was not deployed to $(RevitMaterDir). Check PlatformTarget=x64 and build OutputPath." />
+		<!-- Copie le fichier .addin -->
+		<Copy SourceFiles="$(TargetDir)Mater2026.addin" DestinationFolder="$(RevitAddinsDir)" />
+
+		<!-- Vérification -->
+		<Message Importance="high" Text="Mater2026 déployé dans $(RevitMaterDir)" />
 	</Target>
+
 </Project>
