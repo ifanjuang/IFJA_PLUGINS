@@ -23,7 +23,8 @@ namespace Mater2026
         public static ExternalEvent? FolderEvent { get; private set; }
         public static FolderStorageHandler? FolderHandler { get; private set; }
 
-
+        public static ExternalEvent? AssignEvent { get; private set; }
+        public static AssignMaterialHandler? AssignHandler { get; private set; }
 
         public Result OnStartup(UIControlledApplication a)
         {
@@ -69,6 +70,9 @@ namespace Mater2026
 
                 FolderHandler = new FolderStorageHandler();
                 FolderEvent = ExternalEvent.Create(FolderHandler);
+
+                AssignHandler = new AssignMaterialHandler();
+                AssignEvent = ExternalEvent.Create(AssignHandler);
 
             }
             catch (Exception ex)
