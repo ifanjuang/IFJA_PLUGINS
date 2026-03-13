@@ -156,9 +156,24 @@ namespace Mater2026
 
     public class ThumbItem : NotifyBase
     {
-        public string Name { get; set; } = string.Empty;
-        public string FullPath { get; set; } = string.Empty;
-        public string ThumbPath { get; set; } = string.Empty;
+        private string _name = string.Empty;
+        public string Name { get => _name; set => SetField(ref _name, value); }
+
+        private string _fullPath = string.Empty;
+        public string FullPath { get => _fullPath; set => SetField(ref _fullPath, value); }
+
+        private string _thumbPath = string.Empty;
+        public string ThumbPath { get => _thumbPath; set => SetField(ref _thumbPath, value); }
+    }
+
+    [ValueConversion(typeof(string), typeof(string))]
+    public class PathToNameConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is string path ? Path.GetFileName(path) : value;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
     }
 
     [ValueConversion(typeof(string), typeof(BitmapImage))]
@@ -244,66 +259,6 @@ namespace Mater2026
         }
     }
 
-    public static class SettingsStorageService
-    {
-        private static readonly Guid _schemaGuid = new("AE0A70E5-7A76-4D3D-A5C5-3E82F74C3C6F");
-        private const string FieldRootFolder = "RootFolder";
-
-        public static void SaveRootFolder(Document doc, string path)
-        {
-            if (doc == null || string.IsNullOrWhiteSpace(path))
-                return;
-
-            try
-            {
-                var schema = Schema.Lookup(_schemaGuid);
-                if (schema == null)
-                {
-                    var builder = new SchemaBuilder(_schemaGuid);
-                    builder.SetSchemaName("Mater2026Settings");
-                    builder.AddSimpleField(FieldRootFolder, typeof(string));
-                    builder.SetReadAccessLevel(AccessLevel.Public);
-                    builder.SetWriteAccessLevel(AccessLevel.Public);
-                    schema = builder.Finish();
-                }
-
-                var data = new Entity(schema);
-                data.Set(FieldRootFolder, path);
-
-                using var tx = new Transaction(doc, "Save Mater Settings");
-                tx.Start();
-                doc.ProjectInformation.SetEntity(data);
-                tx.Commit();
-            }
-            catch (Exception ex)
-            {
-                TaskDialog.Show("Mater2026", $"Erreur stockage Revit : {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Récupère le chemin racine enregistré dans le document.
-        /// </summary>
-        public static string? LoadRootFolder(Document doc)
-        {
-            try
-            {
-                var schema = Schema.Lookup(_schemaGuid);
-                if (schema == null) return null;
-
-                var entity = doc.ProjectInformation.GetEntity(schema);
-                if (entity.Schema == null) return null;
-
-                return entity.Get<string>(schema.GetField(FieldRootFolder));
-            }
-            catch
-            {
-                return null;
-            }
-        }
-    }
-
-
     public class MaterialItem(ElementId id, string name) : NotifyBase
     {
         public ElementId Id { get; } = id;
@@ -336,7 +291,7 @@ namespace Mater2026
         {
             var result = new Dictionary<MapType, MapFile>();
             if (!Directory.Exists(folderPath)) return result;
-            foreach (var file in Directory.EnumerateFiles(folderPath))
+            foreach (var file in Directory.EnumerateFiles(folderPath).Where(FileService.IsImage))
             {
                 var lower = Path.GetFileName(file).ToLowerInvariant();
                 foreach (var kv in _patterns)
@@ -356,8 +311,20 @@ namespace Mater2026
     {
         public static Autodesk.Revit.DB.Color? PickColor()
         {
-            // Placeholder : si tu as un color picker Revit, mets-le ici.
-            return new Autodesk.Revit.DB.Color(255, 255, 255);
+            using var dlg = new ColorDialog
+            {
+                AllowFullOpen = true,
+                FullOpen = true,
+                Color = System.Drawing.Color.White
+            };
+
+            if (dlg.ShowDialog() == DialogResult.OK)
+            {
+                var c = dlg.Color;
+                return new Autodesk.Revit.DB.Color(c.R, c.G, c.B);
+            }
+
+            return null;
         }
     }
 
@@ -477,11 +444,9 @@ namespace Mater2026
             {
                 if (SetField(ref _rootFolder, value))
                 {
-                    SettingsStorageService.SaveRootFolder(_uidoc.Document, _rootFolder);
                     LoadRootFolders();
                 }
             }
-
         }
 
 
@@ -732,41 +697,6 @@ namespace Mater2026
                 ToastService.Show($"Erreur lors de la sélection du dossier : {ex.Message}");
             }
         }
-        public static class RevitStorageService
-{
-    private static readonly Guid SchemaGuid = new("6A9A93B9-FE47-4D69-B548-FB9382C9F7BA");
-
-    public static void SaveString(Document doc, string fieldName, string value)
-    {
-        var schema = Schema.Lookup(SchemaGuid) ?? CreateSchema();
-        var entity = doc.ProjectInformation.GetEntity(schema);
-        if (!entity.IsValid())
-            entity = new Entity(schema);
-
-        entity.Set(schema.GetField(fieldName), value);
-        doc.ProjectInformation.SetEntity(entity);
-    }
-
-    public static string? LoadString(Document doc, string fieldName)
-    {
-        var schema = Schema.Lookup(SchemaGuid);
-        if (schema == null) return null;
-
-        var entity = doc.ProjectInformation.GetEntity(schema);
-        if (!entity.IsValid()) return null;
-
-        return entity.Get<string>(schema.GetField(fieldName));
-    }
-
-    private static Schema CreateSchema()
-    {
-        var builder = new SchemaBuilder(SchemaGuid);
-        builder.SetSchemaName("Mater2026Settings");
-        builder.AddSimpleField("RootFolder", typeof(string));
-        return builder.Finish();
-    }
-}
-
 
         private bool MaterialFilterPredicate(object obj)
         {
@@ -966,25 +896,36 @@ namespace Mater2026
                     }
                 }
 
-                // 3️⃣ Matériaux peints sur les faces
+                // 3️⃣ Matériaux peints sur les faces (recurse into GeometryInstance for families)
                 var geo = elem.get_Geometry(new Options());
                 if (geo == null) continue;
 
-                foreach (GeometryObject obj in geo)
-                {
-                    if (obj is Solid solid)
-                    {
-                        foreach (Face face in solid.Faces)
-                        {
-                            ElementId paintId = doc.GetPaintedMaterial(elem.Id, face);
-                            if (paintId != ElementId.InvalidElementId)
-                                used.Add(paintId);
-                        }
-                    }
-                }
+                CollectPaintedMaterials(doc, elem.Id, geo, used);
             }
 
             return used;
+        }
+
+        private static void CollectPaintedMaterials(Document doc, ElementId elemId, GeometryElement geo, HashSet<ElementId> used)
+        {
+            foreach (GeometryObject obj in geo)
+            {
+                if (obj is Solid solid)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        ElementId paintId = doc.GetPaintedMaterial(elemId, face);
+                        if (paintId != ElementId.InvalidElementId)
+                            used.Add(paintId);
+                    }
+                }
+                else if (obj is GeometryInstance gi)
+                {
+                    var instGeo = gi.GetInstanceGeometry();
+                    if (instGeo != null)
+                        CollectPaintedMaterials(doc, elemId, instGeo, used);
+                }
+            }
         }
 
         private void LoadProjectMaterials()
@@ -1076,7 +1017,7 @@ namespace Mater2026
                     // (facultatif) met un petit retour visuel dans Revit
                     try
                     {
-                        using var mat = _uidoc.Document.GetElement(matId) as Autodesk.Revit.DB.Material;
+                        var mat = _uidoc.Document.GetElement(matId) as Autodesk.Revit.DB.Material;
                         if (mat != null)
                             ToastService.Show($"Matériau sélectionné : {mat.Name}");
                     }
@@ -1133,8 +1074,13 @@ namespace Mater2026
             Ui.FolderPath = folder;
 
             Breadcrumb.Clear();
+            string cumulative = "";
             foreach (var p in folder.Split(Path.DirectorySeparatorChar))
-                Breadcrumb.Add(p);
+            {
+                if (string.IsNullOrWhiteSpace(p)) continue;
+                cumulative = string.IsNullOrEmpty(cumulative) ? p : Path.Combine(cumulative, p);
+                Breadcrumb.Add(cumulative);
+            }
 
             GridFolders.Clear();
 
@@ -1265,7 +1211,50 @@ namespace Mater2026
         }
 
 
-        private static void OnAssign() => ToastService.Show("Assign material to faces (TODO)");
+        private void OnAssign()
+        {
+            if (SelectedMaterial == null)
+            {
+                ToastService.Show("Select a material first.");
+                return;
+            }
+
+            var matId = SelectedMaterial.Id;
+
+            // Hide the window so Revit can receive user input
+            foreach (System.Windows.Window win in System.Windows.Application.Current.Windows)
+            {
+                if (win is MaterWindow)
+                {
+                    win.Hide();
+                    break;
+                }
+            }
+
+            if (App.AssignHandler == null || App.AssignEvent == null)
+            {
+                ToastService.Show("Assign handler not initialized. Restart Revit.");
+                return;
+            }
+
+            App.AssignHandler.Request(_uidoc, matId, count =>
+            {
+                // Re-show window after assignment
+                foreach (System.Windows.Window win in System.Windows.Application.Current.Windows)
+                {
+                    if (win is MaterWindow)
+                    {
+                        win.Show();
+                        win.Activate();
+                        break;
+                    }
+                }
+
+                if (count > 0)
+                    ToastService.Show($"Material painted on {count} face(s).");
+            });
+        }
+
         private static void OnNavigateBreadcrumb(string path) => ToastService.Show($"Navigate {path}");
     }
 
@@ -1387,13 +1376,14 @@ namespace Mater2026
     }
 
     // ================================
-    // TILE PATTERN (fallback sûr)
+    // TILE PATTERN
     // ================================
     public static class TilePatternService
     {
+        private const double CmToFeet = 1.0 / 30.48;
+
         /// <summary>
-        /// Applique (ou retire) un motif de tuiles au matériau. 
-        /// Fallback: crée un motif modèle minimal si absent (pas d'espacement paramétrique ici, à cause des API non exposées).
+        /// Applies (or removes) a tile pattern to the material using FillGrid for precise spacing.
         /// </summary>
         public static void ApplyTilesToMaterial(
             Document doc,
@@ -1404,7 +1394,7 @@ namespace Mater2026
             int tilesY,
             bool offsetHalfTile)
         {
-            // 0/0 => on retire tout motif
+            // 0/0 => remove any pattern
             if (tilesX <= 0 && tilesY <= 0)
             {
                 using var tx0 = new Transaction(doc, "Remove Pattern");
@@ -1414,13 +1404,12 @@ namespace Mater2026
                 return;
             }
 
-            // Nom logique (on garde ta convention, utile si tu veux livrer des patterns depuis un gabarit)
             string name = $"tiles_{tilesX}_{tilesY}" + (offsetHalfTile ? "_offset" : "");
 
             using var tx = new Transaction(doc, "Apply Tile Pattern");
             tx.Start();
 
-            // 1) Existe déjà ?
+            // 1) Check if pattern already exists
             var existing = new FilteredElementCollector(doc)
                 .OfClass(typeof(FillPatternElement))
                 .Cast<FillPatternElement>()
@@ -1433,11 +1422,37 @@ namespace Mater2026
                 return;
             }
 
-            // 2) Fallback : créer un motif modèle minimal (Revit génère une grille interne par défaut)
-            //    NOTE : Ici on ne peut PAS fixer l’espacement fin (API non dispo dans ta build).
-            var fp = new FillPattern(name, FillPatternTarget.Model, FillPatternHostOrientation.ToHost);
-            var fpe = FillPatternElement.Create(doc, fp);
+            // 2) Calculate tile spacing in feet
+            double tileWidthFt = tilesX > 0 ? (widthCm / tilesX) * CmToFeet : widthCm * CmToFeet;
+            double tileHeightFt = tilesY > 0 ? (heightCm / tilesY) * CmToFeet : heightCm * CmToFeet;
 
+            // 3) Create FillGrids for horizontal and vertical lines
+            var grids = new List<FillGrid>();
+
+            // Horizontal lines (angle = 0)
+            var hGrid = new FillGrid
+            {
+                Origin = new UV(0, 0),
+                Offset = tileHeightFt,
+                Angle = 0,
+                Shift = offsetHalfTile ? tileWidthFt / 2.0 : 0
+            };
+            grids.Add(hGrid);
+
+            // Vertical lines (angle = PI/2)
+            var vGrid = new FillGrid
+            {
+                Origin = new UV(0, 0),
+                Offset = tileWidthFt,
+                Angle = Math.PI / 2.0,
+                Shift = offsetHalfTile ? tileHeightFt / 2.0 : 0
+            };
+            grids.Add(vGrid);
+
+            var fp = new FillPattern(name, FillPatternTarget.Model, FillPatternHostOrientation.ToHost);
+            fp.SetFillGrids(grids);
+
+            var fpe = FillPatternElement.Create(doc, fp);
             mat.SurfaceForegroundPatternId = fpe.Id;
             tx.Commit();
         }
@@ -1567,7 +1582,80 @@ namespace Mater2026
         public string GetName() => "Apply Material Handler";
     }
 
+    public class AssignMaterialHandler : IExternalEventHandler
+    {
+        private UIDocument? _uidoc;
+        private ElementId? _materialId;
+        private Action<int>? _callback;
 
+        public void Request(UIDocument uidoc, ElementId materialId, Action<int> callback)
+        {
+            _uidoc = uidoc;
+            _materialId = materialId;
+            _callback = callback;
+            App.AssignEvent?.Raise();
+        }
 
+        public void Execute(UIApplication app)
+        {
+            int painted = 0;
+            try
+            {
+                UIDocument uidoc = app.ActiveUIDocument;
+                if (uidoc == null || _materialId == null)
+                {
+                    _callback?.Invoke(0);
+                    return;
+                }
 
+                Document doc = uidoc.Document;
+
+                // Let user pick multiple faces
+                IList<Reference> refs = uidoc.Selection.PickObjects(
+                    ObjectType.Face,
+                    "Select faces to paint, then click Finish");
+
+                if (refs == null || refs.Count == 0)
+                {
+                    _callback?.Invoke(0);
+                    return;
+                }
+
+                using var tx = new Transaction(doc, "Mater2026 - Paint Faces");
+                tx.Start();
+
+                foreach (Reference r in refs)
+                {
+                    Element elem = doc.GetElement(r);
+                    if (elem == null) continue;
+
+                    GeometryObject geoObj = elem.GetGeometryObjectFromReference(r);
+                    if (geoObj is Face face)
+                    {
+                        doc.Paint(elem.Id, face, _materialId);
+                        painted++;
+                    }
+                }
+
+                tx.Commit();
+            }
+            catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+            {
+                // User pressed Escape - that's fine
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Mater2026", "Error painting faces: " + ex.Message);
+            }
+            finally
+            {
+                _callback?.Invoke(painted);
+                _uidoc = null;
+                _materialId = null;
+                _callback = null;
+            }
+        }
+
+        public string GetName() => "Assign Material Handler";
+    }
 }

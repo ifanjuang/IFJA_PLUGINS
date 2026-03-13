@@ -21,9 +21,6 @@ namespace Mater2026
             InitializeComponent();
             _vm = new MaterViewModel(uidoc);
             DataContext = _vm;
-            // Chemin racine à ajuster selon ton arborescence de textures
-            string baseDir = @"Z:\Textures";
-            _ = _vm.InitializeTreeRootAsync(baseDir);
         }
 
         // =============================================
