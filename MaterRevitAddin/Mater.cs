@@ -156,9 +156,24 @@ namespace Mater2026
 
     public class ThumbItem : NotifyBase
     {
-        public string Name { get; set; } = string.Empty;
-        public string FullPath { get; set; } = string.Empty;
-        public string ThumbPath { get; set; } = string.Empty;
+        private string _name = string.Empty;
+        public string Name { get => _name; set => SetField(ref _name, value); }
+
+        private string _fullPath = string.Empty;
+        public string FullPath { get => _fullPath; set => SetField(ref _fullPath, value); }
+
+        private string _thumbPath = string.Empty;
+        public string ThumbPath { get => _thumbPath; set => SetField(ref _thumbPath, value); }
+    }
+
+    [ValueConversion(typeof(string), typeof(string))]
+    public class PathToNameConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is string path ? Path.GetFileName(path) : value;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
     }
 
     [ValueConversion(typeof(string), typeof(BitmapImage))]
@@ -244,66 +259,6 @@ namespace Mater2026
         }
     }
 
-    public static class SettingsStorageService
-    {
-        private static readonly Guid _schemaGuid = new("AE0A70E5-7A76-4D3D-A5C5-3E82F74C3C6F");
-        private const string FieldRootFolder = "RootFolder";
-
-        public static void SaveRootFolder(Document doc, string path)
-        {
-            if (doc == null || string.IsNullOrWhiteSpace(path))
-                return;
-
-            try
-            {
-                var schema = Schema.Lookup(_schemaGuid);
-                if (schema == null)
-                {
-                    var builder = new SchemaBuilder(_schemaGuid);
-                    builder.SetSchemaName("Mater2026Settings");
-                    builder.AddSimpleField(FieldRootFolder, typeof(string));
-                    builder.SetReadAccessLevel(AccessLevel.Public);
-                    builder.SetWriteAccessLevel(AccessLevel.Public);
-                    schema = builder.Finish();
-                }
-
-                var data = new Entity(schema);
-                data.Set(FieldRootFolder, path);
-
-                using var tx = new Transaction(doc, "Save Mater Settings");
-                tx.Start();
-                doc.ProjectInformation.SetEntity(data);
-                tx.Commit();
-            }
-            catch (Exception ex)
-            {
-                TaskDialog.Show("Mater2026", $"Erreur stockage Revit : {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Récupère le chemin racine enregistré dans le document.
-        /// </summary>
-        public static string? LoadRootFolder(Document doc)
-        {
-            try
-            {
-                var schema = Schema.Lookup(_schemaGuid);
-                if (schema == null) return null;
-
-                var entity = doc.ProjectInformation.GetEntity(schema);
-                if (entity.Schema == null) return null;
-
-                return entity.Get<string>(schema.GetField(FieldRootFolder));
-            }
-            catch
-            {
-                return null;
-            }
-        }
-    }
-
-
     public class MaterialItem(ElementId id, string name) : NotifyBase
     {
         public ElementId Id { get; } = id;
@@ -336,7 +291,7 @@ namespace Mater2026
         {
             var result = new Dictionary<MapType, MapFile>();
             if (!Directory.Exists(folderPath)) return result;
-            foreach (var file in Directory.EnumerateFiles(folderPath))
+            foreach (var file in Directory.EnumerateFiles(folderPath).Where(FileService.IsImage))
             {
                 var lower = Path.GetFileName(file).ToLowerInvariant();
                 foreach (var kv in _patterns)
@@ -489,11 +444,9 @@ namespace Mater2026
             {
                 if (SetField(ref _rootFolder, value))
                 {
-                    SettingsStorageService.SaveRootFolder(_uidoc.Document, _rootFolder);
                     LoadRootFolders();
                 }
             }
-
         }
 
 
@@ -943,25 +896,36 @@ namespace Mater2026
                     }
                 }
 
-                // 3️⃣ Matériaux peints sur les faces
+                // 3️⃣ Matériaux peints sur les faces (recurse into GeometryInstance for families)
                 var geo = elem.get_Geometry(new Options());
                 if (geo == null) continue;
 
-                foreach (GeometryObject obj in geo)
-                {
-                    if (obj is Solid solid)
-                    {
-                        foreach (Face face in solid.Faces)
-                        {
-                            ElementId paintId = doc.GetPaintedMaterial(elem.Id, face);
-                            if (paintId != ElementId.InvalidElementId)
-                                used.Add(paintId);
-                        }
-                    }
-                }
+                CollectPaintedMaterials(doc, elem.Id, geo, used);
             }
 
             return used;
+        }
+
+        private static void CollectPaintedMaterials(Document doc, ElementId elemId, GeometryElement geo, HashSet<ElementId> used)
+        {
+            foreach (GeometryObject obj in geo)
+            {
+                if (obj is Solid solid)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        ElementId paintId = doc.GetPaintedMaterial(elemId, face);
+                        if (paintId != ElementId.InvalidElementId)
+                            used.Add(paintId);
+                    }
+                }
+                else if (obj is GeometryInstance gi)
+                {
+                    var instGeo = gi.GetInstanceGeometry();
+                    if (instGeo != null)
+                        CollectPaintedMaterials(doc, elemId, instGeo, used);
+                }
+            }
         }
 
         private void LoadProjectMaterials()
@@ -1053,7 +1017,7 @@ namespace Mater2026
                     // (facultatif) met un petit retour visuel dans Revit
                     try
                     {
-                        using var mat = _uidoc.Document.GetElement(matId) as Autodesk.Revit.DB.Material;
+                        var mat = _uidoc.Document.GetElement(matId) as Autodesk.Revit.DB.Material;
                         if (mat != null)
                             ToastService.Show($"Matériau sélectionné : {mat.Name}");
                     }
@@ -1110,8 +1074,13 @@ namespace Mater2026
             Ui.FolderPath = folder;
 
             Breadcrumb.Clear();
+            string cumulative = "";
             foreach (var p in folder.Split(Path.DirectorySeparatorChar))
-                Breadcrumb.Add(p);
+            {
+                if (string.IsNullOrWhiteSpace(p)) continue;
+                cumulative = string.IsNullOrEmpty(cumulative) ? p : Path.Combine(cumulative, p);
+                Breadcrumb.Add(cumulative);
+            }
 
             GridFolders.Clear();
 

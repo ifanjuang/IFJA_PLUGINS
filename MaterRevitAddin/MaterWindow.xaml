@@ -9,6 +9,7 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="Bool2Vis"/>
         <local:PathToImageConverter x:Key="PathToImageConverter"/>
+        <local:PathToNameConverter x:Key="PathToNameConverter"/>
         <Style TargetType="Button">
             <Setter Property="Margin" Value="2"/>
             <Setter Property="Padding" Value="4,2"/>
@@ -60,7 +61,7 @@
                         <ItemsControl ItemsSource="{Binding Breadcrumb}" MinWidth="147">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Content="{Binding Path=., Mode=OneWay}"
+                                    <Button Content="{Binding Path=., Mode=OneWay, Converter={StaticResource PathToNameConverter}}"
                                     Tag="{Binding Path=.}"
                                     Click="Breadcrumb_Click"
                                     Margin="2"
