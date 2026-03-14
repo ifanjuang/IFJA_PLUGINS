@@ -85,7 +85,20 @@ namespace Mater2026
         }
 
 
-        public Result OnShutdown(UIControlledApplication a) => Result.Succeeded;
+        public Result OnShutdown(UIControlledApplication a)
+        {
+            PickEvent?.Dispose();
+            ApplyEvent?.Dispose();
+            FolderEvent?.Dispose();
+            AssignEvent?.Dispose();
+
+            PickEvent = null; PickHandler = null;
+            ApplyEvent = null; ApplyHandler = null;
+            FolderEvent = null; FolderHandler = null;
+            AssignEvent = null; AssignHandler = null;
+
+            return Result.Succeeded;
+        }
 
         // Charge une icône PNG embarquée en ressource
         private static BitmapImage? LoadPngImageSource(string resourceName)
@@ -155,24 +168,34 @@ namespace Mater2026
     internal static class SingletonWindow
     {
         private static MaterWindow? _win;
+        private static Document? _doc;
 
         public static MaterWindow Get(UIApplication uiapp)
         {
+            if (uiapp.ActiveUIDocument == null)
+                throw new InvalidOperationException("No active document in Revit.");
+
+            var activeDoc = uiapp.ActiveUIDocument.Document;
+
+            // Close existing window if the active document changed
+            if (_win != null && !ReferenceEquals(_doc, activeDoc))
+            {
+                _win.Close();
+                _win = null;
+                _doc = null;
+            }
+
             if (_win == null)
             {
-                if (uiapp.ActiveUIDocument == null)
-                    throw new InvalidOperationException("No active document in Revit.");
-
+                _doc = activeDoc;
                 _win = new MaterWindow(uiapp.ActiveUIDocument);
 
-                // Attacher la fenêtre à Revit
                 var helper = new WindowInteropHelper(_win)
                 {
                     Owner = uiapp.MainWindowHandle
                 };
 
-                // Libère la référence quand la fenêtre est fermée
-                _win.Closed += (s, e) => _win = null;
+                _win.Closed += (s, e) => { _win = null; _doc = null; };
             }
             return _win;
         }

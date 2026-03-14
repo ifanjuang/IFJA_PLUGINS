@@ -64,6 +64,7 @@ MaterRevitAddin/
 | `PickMaterialHandler` | IExternalEventHandler — sélection de matériau par face |
 | `ApplyMaterialHandler` | IExternalEventHandler — application des modifications |
 | `AssignMaterialHandler` | IExternalEventHandler — peinture de faces multiples |
+| `FolderStorageHandler` | IExternalEventHandler — sauvegarde du dossier racine dans Revit |
 
 ### Pattern ExternalEvent
 

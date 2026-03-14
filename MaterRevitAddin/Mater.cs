@@ -499,9 +499,10 @@ namespace Mater2026
 
         public RelayCommand ClearFilterCmd { get; }
 
-        public RelayCommand NavigateBreadcrumbCmd { get; }
 
         private int _thumbSize = 256;
+        private CancellationTokenSource? _thumbRefreshCts;
+
         public int ThumbSize
         {
             get => _thumbSize;
@@ -509,26 +510,12 @@ namespace Mater2026
             {
                 if (SetField(ref _thumbSize, value))
                 {
-                    // Déclenche le rafraîchissement asynchrone quand la taille change
-                    _ = RefreshThumbnailsAsync();
+                    _thumbRefreshCts?.Cancel();
+                    _thumbRefreshCts = new CancellationTokenSource();
+                    _ = RefreshThumbnailsAsync(_thumbRefreshCts.Token);
                 }
             }
         }
-        // ================================================
-        // CHARGEMENT INITIAL DU TREEVIEW
-        // ================================================
-        public async Task InitializeTreeRootAsync(string baseDir)
-        {
-            TreeRoot.Clear();
-
-            if (Directory.Exists(baseDir))
-            {
-                var root = new FolderNode(baseDir);
-                TreeRoot.Add(root);
-                await Task.CompletedTask;
-            }
-        }
-
         public void RefreshBreadcrumb()
         {
             Breadcrumb.Clear();
@@ -556,25 +543,6 @@ namespace Mater2026
             await OnFolderSelectedAsync(path);
         }
 
-
-
-        public string? RebuildPathFromBreadcrumb(string segment)
-        {
-            try
-            {
-                if (!Breadcrumb.Contains(segment))
-                    return null;
-
-                int idx = Breadcrumb.IndexOf(segment);
-                string path = string.Join(Path.DirectorySeparatorChar.ToString(),
-                                          Breadcrumb.Take(idx + 1));
-                return path;
-            }
-            catch
-            {
-                return null;
-            }
-        }
 
 
         public FolderNode? FindNodeByPath(string fullPath)
@@ -614,7 +582,6 @@ namespace Mater2026
             AssignMaterialCmd = new RelayCommand(_ => OnAssign(), _ => SelectedMaterial != null);
             PickCmd = new RelayCommand(_ => OnPickMaterial());
             ClearFilterCmd = new RelayCommand(_ => MaterialFilter = string.Empty);
-            NavigateBreadcrumbCmd = new RelayCommand(p => OnNavigateBreadcrumb(p?.ToString() ?? ""));
             MaterialsView = CollectionViewSource.GetDefaultView(ProjectMaterials);
             GenerateThumbsCmd = new RelayCommand(_ => GenerateThumbs());
             MaterialsView.Filter = MaterialFilterPredicate;
@@ -655,7 +622,7 @@ namespace Mater2026
         {
             try
             {
-                var dlg = new System.Windows.Forms.FolderBrowserDialog
+                using var dlg = new System.Windows.Forms.FolderBrowserDialog
                 {
                     Description = "Select Root folder for PBR",
                     SelectedPath = Directory.Exists(RootFolder)
@@ -1029,14 +996,20 @@ namespace Mater2026
                 }
             });
         }
-        public async Task RefreshThumbnailsAsync()
+        public async Task RefreshThumbnailsAsync(CancellationToken ct = default)
         {
             string folder = Ui.FolderPath;
             if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
                 return;
 
-            // Petite pause pour éviter les rafraîchissements multiples si on change vite la taille
-            await Task.Delay(150);
+            try
+            {
+                await Task.Delay(150, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
 
             var thumbs = await Task.Run(() =>
             {
@@ -1157,8 +1130,8 @@ namespace Mater2026
             // 🔹 Send Revit-safe work to be executed inside API context
             App.ApplyHandler.Request(app =>
             {
-                var uiDoc = app.ActiveUIDocument;
-                var doc = uiDoc.Document;
+                if (app.ActiveUIDocument?.Document is not { } doc)
+                    return;
 
                 var appElem = RevitMaterialService.GetOrCreateAppearanceByFolder(doc, Ui.MaterialName);
 
@@ -1255,7 +1228,6 @@ namespace Mater2026
             });
         }
 
-        private static void OnNavigateBreadcrumb(string path) => ToastService.Show($"Navigate {path}");
     }
 
     // ================================
@@ -1299,7 +1271,10 @@ namespace Mater2026
                 ?? new FilteredElementCollector(doc)
                     .OfClass(typeof(AppearanceAssetElement))
                     .Cast<AppearanceAssetElement>()
-                    .First();
+                    .FirstOrDefault();
+
+            if (baseApp == null)
+                throw new InvalidOperationException("No AppearanceAssetElement found in document. Open a template with at least one material.");
 
             using var tx = new Transaction(doc, "Create Appearance");
             tx.Start();
