@@ -277,7 +277,7 @@ namespace Mater2026
 
     public static class MapDetectionService
     {
-        private static readonly Dictionary<MapType, string[]> _patterns = new()
+        internal static readonly Dictionary<MapType, string[]> _patterns = new()
         {
             { MapType.Albedo, new [] { "diff","dif","albedo","basecolor","col","color","rgb" } },
             { MapType.Bump, new [] { "bump","normal","disp","height","depth" } },
@@ -286,6 +286,8 @@ namespace Mater2026
             { MapType.Refraction, new [] { "refr","opac","transp" } },
             { MapType.Illumination, new [] { "emit","glow","light" } }
         };
+
+        public static IReadOnlyDictionary<MapType, string[]> Patterns => _patterns;
 
         public static Dictionary<MapType, MapFile> DetectMaps(string folderPath)
         {
@@ -304,6 +306,170 @@ namespace Mater2026
                 }
             }
             return result;
+        }
+    }
+
+    public static class ImportMapService
+    {
+        /// <summary>
+        /// Extracts the common base name from a list of file paths.
+        /// E.g. ["marble_white_diff.jpg", "marble_white_normal.png"] → "marble_white"
+        /// </summary>
+        public static string ExtractBaseName(IReadOnlyList<string> filePaths)
+        {
+            if (filePaths.Count == 0) return "material";
+            if (filePaths.Count == 1)
+            {
+                string name = Path.GetFileNameWithoutExtension(filePaths[0]);
+                // Try removing known suffixes
+                foreach (var kv in MapDetectionService.Patterns)
+                {
+                    foreach (var keyword in kv.Value)
+                    {
+                        int idx = name.LastIndexOf(keyword, StringComparison.OrdinalIgnoreCase);
+                        if (idx > 0)
+                        {
+                            string candidate = name[..idx].TrimEnd('_', '-', ' ');
+                            if (candidate.Length > 0) return candidate;
+                        }
+                    }
+                }
+                return name;
+            }
+
+            // Find longest common prefix of all filenames (without extension)
+            var names = filePaths.Select(f => Path.GetFileNameWithoutExtension(f)).ToList();
+            string first = names[0];
+            int commonLen = first.Length;
+
+            for (int i = 1; i < names.Count; i++)
+            {
+                commonLen = Math.Min(commonLen, names[i].Length);
+                for (int j = 0; j < commonLen; j++)
+                {
+                    if (char.ToLowerInvariant(first[j]) != char.ToLowerInvariant(names[i][j]))
+                    {
+                        commonLen = j;
+                        break;
+                    }
+                }
+            }
+
+            string prefix = first[..commonLen].TrimEnd('_', '-', ' ');
+            return prefix.Length > 0 ? prefix : Path.GetFileNameWithoutExtension(filePaths[0]);
+        }
+
+        /// <summary>
+        /// Detects the MapType for a single file based on its filename keywords.
+        /// Returns null if no pattern matches.
+        /// </summary>
+        public static MapType? DetectFileMapType(string filePath)
+        {
+            string lower = Path.GetFileName(filePath).ToLowerInvariant();
+            foreach (var kv in MapDetectionService.Patterns)
+            {
+                if (kv.Value.Any(p => lower.Contains(p)))
+                    return kv.Key;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Imports dropped files into a new subfolder under destinationParent.
+        /// Returns the created folder path, or null if cancelled.
+        /// </summary>
+        public static string? ImportFiles(
+            IReadOnlyList<string> files,
+            string destinationParent,
+            Func<string, MapType?>? askUserForMapType)
+        {
+            if (files.Count == 0 || !Directory.Exists(destinationParent))
+                return null;
+
+            string baseName = ExtractBaseName(files);
+            string destFolder = Path.Combine(destinationParent, baseName);
+
+            // Create destination folder
+            Directory.CreateDirectory(destFolder);
+
+            foreach (string file in files)
+            {
+                if (!FileService.IsImage(file)) continue;
+
+                string ext = Path.GetExtension(file);
+                MapType? type = DetectFileMapType(file);
+
+                if (type == null)
+                {
+                    // Check if filename matches the base name exactly → preview
+                    string nameNoExt = Path.GetFileNameWithoutExtension(file);
+                    if (nameNoExt.Equals(baseName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Preview / thumbnail image — copy as baseName.ext
+                        string dest = Path.Combine(destFolder, baseName + ext);
+                        File.Copy(file, dest, true);
+                        continue;
+                    }
+
+                    // Ask user
+                    if (askUserForMapType != null)
+                    {
+                        type = askUserForMapType(file);
+                        if (type == null)
+                        {
+                            // User chose "Preview" or cancelled — copy as-is with base name
+                            string dest = Path.Combine(destFolder, baseName + ext);
+                            File.Copy(file, dest, true);
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        // No callback — just copy as base name (preview)
+                        string dest = Path.Combine(destFolder, baseName + ext);
+                        File.Copy(file, dest, true);
+                        continue;
+                    }
+                }
+
+                // Copy and rename as baseName_type.ext
+                string typeSuffix = type.Value switch
+                {
+                    MapType.Albedo => "diff",
+                    MapType.Bump => "normal",
+                    MapType.Roughness => "rough",
+                    MapType.Reflection => "refl",
+                    MapType.Refraction => "refr",
+                    MapType.Illumination => "emit",
+                    _ => type.Value.ToString().ToLower()
+                };
+
+                string destPath = Path.Combine(destFolder, $"{baseName}_{typeSuffix}{ext}");
+                File.Copy(file, destPath, true);
+            }
+
+            return destFolder;
+        }
+
+        /// <summary>
+        /// Imports a dropped folder by copying its image files.
+        /// </summary>
+        public static string? ImportFolder(
+            string sourceFolder,
+            string destinationParent,
+            Func<string, MapType?>? askUserForMapType)
+        {
+            if (!Directory.Exists(sourceFolder) || !Directory.Exists(destinationParent))
+                return null;
+
+            var imageFiles = Directory.EnumerateFiles(sourceFolder)
+                .Where(FileService.IsImage)
+                .ToList();
+
+            if (imageFiles.Count == 0)
+                return null;
+
+            return ImportFiles(imageFiles, destinationParent, askUserForMapType);
         }
     }
 
@@ -1226,6 +1392,57 @@ namespace Mater2026
                 if (count > 0)
                     ToastService.Show($"Material painted on {count} face(s).");
             });
+        }
+
+        /// <summary>
+        /// Handles drag & drop of files/folders onto the center panel.
+        /// Creates a subfolder with the common base name and copies/renames files.
+        /// </summary>
+        public async Task HandleDropImportAsync(string[] paths, System.Windows.Window owner)
+        {
+            string destParent = Ui.FolderPath;
+            if (string.IsNullOrWhiteSpace(destParent) || !Directory.Exists(destParent))
+            {
+                ToastService.Show("Sélectionnez d'abord un dossier dans l'arborescence.");
+                return;
+            }
+
+            // Collect all image files from dropped items
+            var imageFiles = new List<string>();
+            foreach (string path in paths)
+            {
+                if (Directory.Exists(path))
+                {
+                    // Dropped folder: collect its image files
+                    imageFiles.AddRange(Directory.EnumerateFiles(path).Where(FileService.IsImage));
+                }
+                else if (FileService.IsImage(path))
+                {
+                    imageFiles.Add(path);
+                }
+            }
+
+            if (imageFiles.Count == 0)
+            {
+                ToastService.Show("Aucune image trouvée dans les fichiers déposés.");
+                return;
+            }
+
+            // Callback for unrecognized files: show MapTypePickerDialog on UI thread
+            MapType? AskUser(string filePath)
+            {
+                return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    MapTypePickerDialog.Ask(filePath, owner));
+            }
+
+            string? createdFolder = await Task.Run(() =>
+                ImportMapService.ImportFiles(imageFiles, destParent, AskUser));
+
+            if (createdFolder != null)
+            {
+                ToastService.Show($"Matériau importé : {Path.GetFileName(createdFolder)}");
+                await OnFolderSelectedAsync(destParent);
+            }
         }
 
     }

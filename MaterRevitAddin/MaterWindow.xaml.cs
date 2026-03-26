@@ -152,6 +152,32 @@ namespace Mater2026
         }
 
         // =============================================
+        // 🔹 Drag & Drop import (center panel)
+        // =============================================
+        private void CenterPanel_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+                bool valid = paths.Any(p => Directory.Exists(p) || FileService.IsImage(p));
+                e.Effects = valid ? DragDropEffects.Copy : DragDropEffects.None;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+            }
+            e.Handled = true;
+        }
+
+        private async void CenterPanel_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+            string[] paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+            await _vm.HandleDropImportAsync(paths, this);
+        }
+
+        // =============================================
         // 🔹 Sélection de fichier et teinte
         // =============================================
         private void MapSlot_Browse_Click(object sender, RoutedEventArgs e)

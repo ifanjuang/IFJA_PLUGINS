@@ -92,8 +92,11 @@
                 </StackPanel>
                 
 
-                <!-- Thumbnails Grid -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <!-- Thumbnails Grid (supports drag & drop of image files/folders) -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              AllowDrop="True"
+                              DragOver="CenterPanel_DragOver"
+                              Drop="CenterPanel_Drop">
                     <ItemsControl ItemsSource="{Binding GridFolders}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
